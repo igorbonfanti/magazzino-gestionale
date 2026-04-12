@@ -236,6 +236,7 @@ tr.in-cart .col-cod::after{content:" \2713";color:var(--green);font-size:10px}
 .overlay{
   position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);
   z-index:100;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);
+  padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
 }
 .overlay.open{display:flex}
 @keyframes slideUp{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -299,6 +300,7 @@ tr.in-cart .col-cod::after{content:" \2713";color:var(--green);font-size:10px}
 .print-overlay{
   position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);
   z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);
+  padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
 }
 .print-overlay.open{display:flex}
 .print-modal{
