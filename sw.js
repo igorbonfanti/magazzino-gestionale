@@ -1,4 +1,4 @@
-const CACHE_NAME = 'magazzino-pos-v1.1.0';
+const CACHE_NAME = 'magazzino-pos-v1.2.1';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -6,7 +6,9 @@ const ASSETS_TO_CACHE = [
   './app.js',
   './manifest.json',
   'https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
+  'https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js',
+  'https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore-compat.js'
 ];
 
 self.addEventListener('install', (event) => {

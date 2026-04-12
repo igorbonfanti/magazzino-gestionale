@@ -42,9 +42,10 @@
       <div class="logo">ME</div>
       <div class="header-text">
         <h1>Listino Prezzi Netto</h1>
-        <p>Il Magazzino Edile S.r.l. <span class="app-version" style="opacity:0.6; font-size:10px; margin-left: 6px; font-family:'JetBrains Mono',monospace;">v1.1.0</span></p>
+        <p>Il Magazzino Edile S.r.l. <span class="app-version" style="opacity:0.6; font-size:10px; margin-left: 6px; font-family:'JetBrains Mono',monospace;">v1.2.0</span></p>
       </div>
-      <button class="btn btn-secondary reload-btn" id="btnReloadListino" style="margin-left: auto;">Aggiorna Listino (Excel)</button>
+      <button class="btn btn-secondary" id="btnStorico" style="margin-left: auto; margin-right: 10px; background: var(--surface2); border: 1px solid var(--border);">📜 Storico Preventivi</button>
+      <button class="btn btn-secondary reload-btn" id="btnReloadListino">Aggiorna Listino (Excel)</button>
     </div>
     
     <div class="search-wrap">
@@ -174,7 +175,74 @@
   </div>
 </div>
 
+<!-- STORICO PREVENTIVI MODAL -->
+<div class="overlay" id="storicoOverlay">
+  <div class="modal" id="storicoModal" style="max-width: 900px; height: 90vh; display: flex; flex-direction: column;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 16px;">
+      <h2>📜 Storico Preventivi (Database Condiviso)</h2>
+      <button class="modal-close" id="storicoCloseBtn" style="position: static; margin: 0; padding: 4px 8px;">&times;</button>
+    </div>
+
+    <!-- Filtri Storico -->
+    <div class="storico-filters" style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; background: var(--surface2); padding: 12px; border-radius: var(--radius); border: 1px solid var(--border);">
+      <div style="flex: 1 1 150px;">
+        <label style="font-size: 11px; color: var(--text3); display: block; margin-bottom: 4px;">Ricerca Numero</label>
+        <input type="text" id="sfNum" class="search-input" placeholder="es. 0005" style="padding: 8px; font-size: 13px;">
+      </div>
+      <div style="flex: 1 1 130px;">
+        <label style="font-size: 11px; color: var(--text3); display: block; margin-bottom: 4px;">Data Da</label>
+        <input type="date" id="sfDateFrom" class="search-input" style="padding: 8px; font-size: 13px;">
+      </div>
+      <div style="flex: 1 1 130px;">
+        <label style="font-size: 11px; color: var(--text3); display: block; margin-bottom: 4px;">Data A</label>
+        <input type="date" id="sfDateTo" class="search-input" style="padding: 8px; font-size: 13px;">
+      </div>
+      <div style="flex: 1 1 180px;">
+        <label style="font-size: 11px; color: var(--text3); display: block; margin-bottom: 4px;">Cliente (Ragione / PIVA)</label>
+        <input type="text" id="sfCustomer" class="search-input" placeholder="Mario Rossi..." style="padding: 8px; font-size: 13px;">
+      </div>
+      <div style="flex: 1 1 180px;">
+        <label style="font-size: 11px; color: var(--text3); display: block; margin-bottom: 4px;">Articolo (Codice / Descr)</label>
+        <input type="text" id="sfItem" class="search-input" placeholder="Es. Mattone..." style="padding: 8px; font-size: 13px;">
+      </div>
+      <div style="flex: 0 0 auto; display: flex; align-items: flex-end;">
+        <button id="btnSearchStorico" class="btn btn-primary" style="padding: 8px 16px;">🔍 Cerca</button>
+        <button id="btnClearStorico" class="btn btn-secondary" style="padding: 8px 16px; margin-left: 8px;">🔄 Reset</button>
+      </div>
+    </div>
+
+    <!-- Lista Risultati -->
+    <div style="flex: 1; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+      <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
+        <thead style="position: sticky; top: 0; background: var(--surface2); box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+          <tr>
+            <th style="padding: 10px; text-align: left; font-size: 12px; color: var(--text3); border-bottom: 1px solid var(--border); width: 160px;">Numero & Data</th>
+            <th style="padding: 10px; text-align: left; font-size: 12px; color: var(--text3); border-bottom: 1px solid var(--border);">Cliente</th>
+            <th style="padding: 10px; text-align: left; font-size: 12px; color: var(--text3); border-bottom: 1px solid var(--border);">Articoli</th>
+            <th style="padding: 10px; text-align: right; font-size: 12px; color: var(--text3); border-bottom: 1px solid var(--border); width: 110px;">Totale</th>
+            <th style="padding: 10px; text-align: center; font-size: 12px; color: var(--text3); border-bottom: 1px solid var(--border); width: 110px;">Azione</th>
+          </tr>
+        </thead>
+        <tbody id="storicoListBody">
+           <!-- Populated via JS -->
+        </tbody>
+      </table>
+      <div id="storicoEmpty" style="display: none; text-align: center; padding: 40px; color: var(--text3);">
+        <div style="font-size: 32px; margin-bottom: 10px;">🔍</div>
+        Nessun preventivo trovato con i filtri impostati.
+      </div>
+      <div id="storicoLoading" style="display: none; text-align: center; padding: 40px; color: var(--text3);">
+        Caricamento in corso dal Cloud...
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
+
+<!-- Firebase Compat Scripts -->
+<script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore-compat.js"></script>
 
 <!-- SheetJS for Excel Parsing -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>

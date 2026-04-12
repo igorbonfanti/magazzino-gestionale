@@ -16,6 +16,21 @@ var debounceTimer = null;
 var CLIENTI = [];
 var starredItems = JSON.parse(localStorage.getItem('posStarred') || '[]');
 var currentCustomer = null;
+window.currentQuoteIdSaved = null;
+
+// Firebase Init
+var db = null;
+try {
+  firebase.initializeApp({
+      apiKey: "AIzaSyCLdOfp4z3FUJX2xt-xBZciyjxJZWeoh7A",
+      authDomain: "magazzino-edile-pos.firebaseapp.com",
+      projectId: "magazzino-edile-pos",
+      storageBucket: "magazzino-edile-pos.firebasestorage.app",
+      messagingSenderId: "696561179056",
+      appId: "1:696561179056:web:fc6b1db62ed256fd3fde75"
+  });
+  db = firebase.firestore();
+} catch(e) { console.warn("Firebase non configurato", e); }
 
 try {
   var savedClienti = localStorage.getItem('posClientiData');
@@ -205,6 +220,7 @@ if(clientiFile) {
                   list.push({
                       ragione: String(row[1]).trim(),
                       piva: row[2] ? String(row[2]).trim() : '',
+                      email: row[7] ? String(row[7]).trim() : '',
                       indirizzo: row[8] ? String(row[8]).trim() : '',
                       citta: row[10] ? String(row[10]).trim() : ''
                   });
@@ -453,6 +469,7 @@ $('mAddBtn').addEventListener('click',function(){
   var existing=null;var wasUpdate=false;
   for(var i=0;i<cart.length;i++){if(cart[i].item.cod===currentItem.cod){existing=cart[i];wasUpdate=true;break}}
   if(existing){existing.qty=qty}else{cart.push({item:currentItem,qty:qty})}
+  window.currentQuoteIdSaved = null;
   closeAddModal();renderCart();doSearch();
   showToast(wasUpdate?'\u2713 Quantit\u00e0 aggiornata':'\u2713 Aggiunto al preventivo');
 });
@@ -491,15 +508,15 @@ function renderCart(){
 
 cartBody.addEventListener('click',function(e){
   var t=e.target,a=t.getAttribute('data-action'),i=parseInt(t.getAttribute('data-idx'),10);
-  if(a==='remove'&&!isNaN(i)){cart.splice(i,1);renderCart();doSearch();showToast('Articolo rimosso')}
-  else if(a==='dec'&&!isNaN(i)){cart[i].qty=Math.max(1,cart[i].qty-1);renderCart()}
-  else if(a==='inc'&&!isNaN(i)){cart[i].qty++;renderCart()}
+  if(a==='remove'&&!isNaN(i)){cart.splice(i,1);window.currentQuoteIdSaved=null;renderCart();doSearch();showToast('Articolo rimosso')}
+  else if(a==='dec'&&!isNaN(i)){cart[i].qty=Math.max(1,cart[i].qty-1);window.currentQuoteIdSaved=null;renderCart()}
+  else if(a==='inc'&&!isNaN(i)){cart[i].qty++;window.currentQuoteIdSaved=null;renderCart()}
 });
 cartBody.addEventListener('change',function(e){
   var t=e.target;
   if(t.getAttribute('data-action')==='setqty'){
     var i=parseInt(t.getAttribute('data-idx'),10);
-    cart[i].qty=Math.max(1,parseFloat(t.value)||1);renderCart();
+    cart[i].qty=Math.max(1,parseFloat(t.value)||1);window.currentQuoteIdSaved=null;renderCart();
   }
 });
 
@@ -525,7 +542,7 @@ if(mobileCartBtn && cartCloseBtn) {
 
 $('btnClear').addEventListener('click',function(){
   if(!cart.length||!confirm('Svuotare tutto il preventivo?'))return;
-  cart=[];renderCart();doSearch();showToast('Preventivo svuotato');
+  cart=[];window.currentQuoteIdSaved=null;renderCart();doSearch();showToast('Preventivo svuotato');
 });
 $('btnPrev').addEventListener('click',showPreventivo);
 
@@ -615,6 +632,7 @@ if(custSearch) {
     $('scCitta').textContent = currentCustomer.citta;
     $('scPiva').textContent = currentCustomer.piva;
     selCustBox.style.display = 'block';
+    window.currentQuoteIdSaved = null;
   });
 
   $('btnRemoveCustomer').addEventListener('click', function(){
@@ -622,13 +640,17 @@ if(custSearch) {
     selCustBox.style.display = 'none';
     custSearch.parentElement.style.display = 'block';
     custSearch.focus();
+    window.currentQuoteIdSaved = null;
   });
 }
 
-$('prevPrintBtn').addEventListener('click',function(){
+$('prevPrintBtn').addEventListener('click', async function(){
+  var qId = await saveQuoteToCloud('PDF');
+  
   if(typeof html2pdf !== 'undefined') {
     var element = document.createElement('div');
     var today = new Date().toLocaleDateString('it-IT');
+    var qStr = qId ? '<br><span style="font-size:14px;color:#16a34a;">N° ' + qId + '</span>' : '';
     var custHtml = '';
     if (currentCustomer) {
        custHtml = '<div style="text-align:right; font-size:13px; margin-bottom:24px;">'
@@ -644,7 +666,7 @@ $('prevPrintBtn').addEventListener('click',function(){
       + '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:30px;">'
       + '<div>'
       + '<h1>Il Magazzino Edile S.r.l.</h1>'
-      + '<div style="color:#666; font-size:12px;">Preventivo del '+today+'</div>'
+      + '<div style="color:#666; font-size:12px;">Preventivo del '+today+qStr+'</div>'
       + '</div>'
       + custHtml
       + '</div>'
@@ -662,7 +684,7 @@ $('prevPrintBtn').addEventListener('click',function(){
 
     var opt = {
       margin:       10,
-      filename:     'preventivo_'+today.split('/').join('-')+'.pdf',
+      filename:     'preventivo_'+(qId ? qId : today.split('/').join('-'))+'.pdf',
       image:        { type: 'jpeg', quality: 0.98 },
       html2canvas:  { scale: 2 },
       jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -674,6 +696,7 @@ $('prevPrintBtn').addEventListener('click',function(){
   } else {
     var content=$('prevBody').innerHTML;
     var w=window.open('','_blank');
+    var qStr = qId ? ' N° ' + qId : '';
     w.document.write('<!DOCTYPE html><html><head><title>Preventivo - Il Magazzino Edile</title>'
       +'<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:40px;color:#222}'
       +'h1{font-size:20px;margin-bottom:4px}.sub{color:#666;font-size:12px;margin-bottom:24px}'
@@ -689,7 +712,7 @@ $('prevPrintBtn').addEventListener('click',function(){
       +'</style></head><body>'
       +'<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:30px;">'
       +'<div><h1>Il Magazzino Edile S.r.l.</h1>'
-      +'<div class="sub">Preventivo del '+new Date().toLocaleDateString('it-IT')+'</div></div>'
+      +'<div class="sub">Preventivo del '+new Date().toLocaleDateString('it-IT')+'<br><span style="color:#16a34a;font-weight:bold;font-size:14px">'+qStr+'</span></div></div>'
       +(currentCustomer ? '<div style="text-align:right; font-size:13px;"><div><strong>Spett.le</strong></div><div style="font-size:16px; font-weight:bold;">'+currentCustomer.ragione+'</div><div>'+currentCustomer.indirizzo+'</div><div>'+currentCustomer.citta+'</div>'+(currentCustomer.piva?'<div>P.IVA: '+currentCustomer.piva+'</div>':'')+'</div>' : '')
       +'</div>'
       +content+'</body></html>');
@@ -698,9 +721,62 @@ $('prevPrintBtn').addEventListener('click',function(){
   }
 });
 
-$('prevEmailBtn').addEventListener('click', function() {
+async function saveQuoteToCloud(type) {
+    if(!db || !cart.length) return null;
+    if(window.currentQuoteIdSaved) return window.currentQuoteIdSaved;
+    
+    showToast("Sincronizzazione su Cloud...");
+    try {
+        var nextNumStr = await db.runTransaction(async (transaction) => {
+            var counterRef = db.collection('metadata').doc('quoteCounter');
+            var doc = await transaction.get(counterRef);
+            var nextNum = 1;
+            if(doc.exists) nextNum = (doc.data().value || 0) + 1;
+            transaction.set(counterRef, { value: nextNum });
+            return String(nextNum).padStart(4, '0');
+        });
+        
+        var dateObj = new Date();
+        var quoteId = 'PREV-' + dateObj.getFullYear() + '-' + nextNumStr;
+        
+        var netto = 0;
+        var itemsForDb = cart.map(function(c){
+           var sub = c.qty*(c.item.net||0);
+           netto += sub;
+           return {
+               cod: c.item.cod, desc: c.item.desc, qty: c.qty, 
+               net: c.item.net, subtotal: sub, prezzo: c.item.prezzo, sconto: c.item.sconto
+           };
+        });
+        
+        var quoteData = {
+           quoteId: quoteId,
+           dateIso: dateObj.toISOString(),
+           timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+           customer: currentCustomer || null,
+           items: itemsForDb,
+           netTotal: netto,
+           type: type,
+           searchTokens: (quoteId + " " + (currentCustomer ? currentCustomer.ragione + " " + currentCustomer.piva : "")).toLowerCase()
+        };
+        
+        await db.collection('quotes').doc(quoteId).set(quoteData);
+        window.currentQuoteIdSaved = quoteId;
+        return quoteId;
+    } catch(err) {
+        console.error(err);
+        showToast("Errore di sincronizzazione");
+        return null;
+    }
+}
+
+$('prevEmailBtn').addEventListener('click', async function() {
     if(!cart.length) return;
-    var bodyText = "In allegato i dettagli del Preventivo.\n\n";
+    
+    var qId = await saveQuoteToCloud('EMAIL');
+    var qStr = qId ? " (N° " + qId + ")" : "";
+    
+    var bodyText = "In allegato i dettagli del Preventivo" + qStr + ".\n\n";
     if(currentCustomer) bodyText += "Spett.le " + currentCustomer.ragione + "\n\n";
     bodyText += "Elenco:\n";
     var netto = 0;
@@ -715,10 +791,12 @@ $('prevEmailBtn').addEventListener('click', function() {
     
     bodyText += "\n\nIl Magazzino Edile S.r.l.";
     
-    var subject = encodeURIComponent("Preventivo - Il Magazzino Edile");
+    var subject = encodeURIComponent("Preventivo - Il Magazzino Edile" + qStr);
     var body = encodeURIComponent(bodyText);
     
-    window.location.href = "mailto:?subject=" + subject + "&body=" + body;
+    var toEmail = (currentCustomer && currentCustomer.email) ? currentCustomer.email : "";
+    
+    window.location.href = "mailto:" + toEmail + "?subject=" + subject + "&body=" + body;
 });
 
 $('prevExportBtn').addEventListener('click',function(){
@@ -759,7 +837,6 @@ if ('serviceWorker' in navigator) {
     });
   });
 
-  // Fai un auto-refresh della pagina se il service worker rileva un aggiornamento (es. quando cambiamo la versione)
   var refreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', function() {
     if (refreshing) return;
@@ -767,3 +844,161 @@ if ('serviceWorker' in navigator) {
     window.location.reload();
   });
 }
+
+// --- STORICO PREVENTIVI (UI & LOGIC) ---
+var storicoOverlay = $('storicoOverlay');
+var btnStorico = $('btnStorico');
+var storicoCloseBtn = $('storicoCloseBtn');
+var btnSearchStorico = $('btnSearchStorico');
+var btnClearStorico = $('btnClearStorico');
+var storicoListBody = $('storicoListBody');
+var sfNum = $('sfNum'), sfDateFrom = $('sfDateFrom'), sfDateTo = $('sfDateTo'), sfCustomer = $('sfCustomer'), sfItem = $('sfItem');
+
+if(btnStorico) btnStorico.addEventListener('click', openStorico);
+if(storicoCloseBtn) storicoCloseBtn.addEventListener('click', closeStorico);
+if(btnClearStorico) btnClearStorico.addEventListener('click', function() {
+    sfNum.value=''; sfDateFrom.value=''; sfDateTo.value=''; sfCustomer.value=''; sfItem.value='';
+    loadStorico();
+});
+if(btnSearchStorico) btnSearchStorico.addEventListener('click', loadStorico);
+
+function openStorico() {
+    if(storicoOverlay) storicoOverlay.classList.add('open');
+    loadStorico();
+}
+
+function closeStorico() {
+    if(storicoOverlay) storicoOverlay.classList.remove('open');
+}
+
+async function loadStorico() {
+    if(!db) { alert("Database non configurato."); return; }
+    
+    $('storicoLoading').style.display = 'block';
+    if($('storicoEmpty')) $('storicoEmpty').style.display = 'none';
+    if(storicoListBody) storicoListBody.innerHTML = '';
+    
+    try {
+        var quotesRef = db.collection('quotes');
+        var query = quotesRef.orderBy('timestamp', 'desc');
+        
+        var snapshot = await query.limit(200).get();
+        var results = [];
+        
+        snapshot.forEach(function(doc){ results.push(doc.data()); });
+        
+        var nQuery = sfNum.value.trim().toLowerCase();
+        var cQuery = sfCustomer.value.trim().toLowerCase();
+        var iQuery = sfItem.value.trim().toLowerCase();
+        var dFrom = sfDateFrom.value ? new Date(sfDateFrom.value) : null;
+        var dTo = sfDateTo.value ? new Date(sfDateTo.value) : null;
+        if(dTo) dTo.setHours(23,59,59,999);
+        
+        var filtered = results.filter(function(q){
+            if(nQuery && q.quoteId.toLowerCase().indexOf(nQuery)===-1) return false;
+            if(cQuery) {
+                var cMatch = false;
+                if(q.customer) {
+                   if((q.customer.ragione||'').toLowerCase().includes(cQuery)) cMatch = true;
+                   if((q.customer.piva||'').toLowerCase().includes(cQuery)) cMatch = true;
+                }
+                if(!cMatch) return false;
+            }
+            if(dFrom || dTo) {
+                var qDate = new Date(q.dateIso);
+                if(dFrom && qDate < dFrom) return false;
+                if(dTo && qDate > dTo) return false;
+            }
+            if(iQuery) {
+                var iMatch = false;
+                if(q.items) {
+                    for(var k=0; k<q.items.length; k++) {
+                       if((q.items[k].desc||'').toLowerCase().includes(iQuery) || (q.items[k].cod||'').toLowerCase().includes(iQuery)) {
+                           iMatch = true; break;
+                       }
+                    }
+                }
+                if(!iMatch) return false;
+            }
+            return true;
+        });
+        
+        if(!storicoListBody) return;
+        
+        if(filtered.length === 0) {
+            $('storicoEmpty').style.display = 'block';
+        } else {
+            var html = '';
+            filtered.forEach(function(q){
+                var dataObj = new Date(q.dateIso);
+                var dataStr = dataObj.toLocaleDateString('it-IT') + ' ' + dataObj.toLocaleTimeString('it-IT', {hour:'2-digit',minute:'2-digit'});
+                var custName = q.customer ? String(q.customer.ragione) : 'Nessun cliente';
+                var custPiva = q.customer && q.customer.piva ? String(q.customer.piva) : '';
+                
+                var itemsStr = '';
+                if(q.items && q.items.length) {
+                    itemsStr = q.items.map(function(it){ return it.qty + 'x ' + (it.desc || it.cod) }).join(', ');
+                }
+                
+                window['_szQuote_' + q.quoteId] = q;
+                
+                html += '<tr class="storico-row">' +
+                        '<td><div class="storico-cod">' + q.quoteId + '</div><div class="storico-date">' + dataStr + '</div></td>' +
+                        '<td><div class="storico-customer">' + esc(custName) + '</div>' + (custPiva ? '<div class="storico-piva">P.IVA: '+esc(custPiva)+'</div>' : '') + '</td>' +
+                        '<td><div class="storico-items" title="'+esc(itemsStr)+'">' + esc(itemsStr) + '</div></td>' +
+                        '<td style="text-align:right"><div class="storico-total">\u20ac ' + fp(q.netTotal * 1.22) + '</div></td>' +
+                        '<td style="text-align:center"><button class="btn btn-secondary" onclick="restoreQuote(\''+q.quoteId+'\')" style="padding:6px 12px; font-size:11px; width:100%;">Riapri \u27F3</button></td>' +
+                        '</tr>';
+            });
+            storicoListBody.innerHTML = html;
+        }
+        
+    } catch(err) {
+        console.error(err);
+        if($('storicoEmpty')){ $('storicoEmpty').innerHTML = "Errore lettura DB: " + err.message; $('storicoEmpty').style.display = 'block'; }
+    } finally {
+        if($('storicoLoading')) $('storicoLoading').style.display = 'none';
+    }
+}
+
+window.restoreQuote = function(quoteId) {
+    var q = window['_szQuote_' + quoteId];
+    if(!q) return;
+    
+    if(cart.length > 0) {
+        if(!confirm("Questo sostituira' il preventivo attualmente in corso. Vuoi procedere?")) return;
+    }
+    
+    cart = [];
+    q.items.forEach(function(it){
+        var matched = ITEMS.filter(function(x){ return x.cod === it.cod })[0];
+        var itemObj = matched ? matched : {
+            cod: it.cod, desc: it.desc, grp: it.grp, forn: it.forn,
+            prezzo: it.prezzo || 0, netto: it.net || 0, sconto: it.sconto || 0, net: it.net || 0
+        };
+        cart.push({ item: itemObj, qty: it.qty });
+    });
+    
+    currentCustomer = q.customer;
+    if(currentCustomer && $('customerSearch')) {
+        $('scRagione').textContent = currentCustomer.ragione || '';
+        $('scIndirizzo').textContent = currentCustomer.indirizzo || '';
+        $('scCitta').textContent = currentCustomer.citta || '';
+        $('scPiva').textContent = currentCustomer.piva || '';
+        $('selectedCustomerBox').style.display = 'block';
+        $('customerSearch').parentElement.style.display = 'none';
+    } else if($('customerSearch')) {
+        $('selectedCustomerBox').style.display = 'none';
+        $('customerSearch').parentElement.style.display = 'block';
+    }
+    
+    window.currentQuoteIdSaved = q.quoteId;
+    
+    renderCart();
+    doSearch();
+    closeStorico();
+    
+    // Open print preview automatically to proceed
+    showPreventivo();
+    showToast("Preventivo " + q.quoteId + " riaperto!");
+};
