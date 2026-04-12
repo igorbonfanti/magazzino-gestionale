@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Magazzino">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="manifest" href="manifest.json">
+    <title>Il Magazzino Edile — POS & Preventivi</title>
+    <!-- Fonts from the beautiful new design -->
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- UPLOAD OVERLAY (Only visible until an Excel file is loaded) -->
+<div class="upload-overlay" id="uploadOverlay">
+    <div class="upload-card">
+        <div class="upload-icon">📊</div>
+        <h2>Carica il Listino Excel</h2>
+        <p>Seleziona o trascina qui il file Excel "ILMAGAZZINOEDILE".<br>I dati verranno salvati nel browser per gli utilizzi futuri.</p>
+        
+        <label for="excelFile" class="upload-btn">
+            Scegli file...
+            <input type="file" id="excelFile" accept=".xlsx, .xls">
+        </label>
+        
+        <div id="uploadStatus" class="upload-status"></div>
+    </div>
+</div>
+
+<!-- MAIN APP (Hidden until data is ready) -->
+<div class="app" id="appContainer" style="display: none;">
+  <div class="catalog">
+    <div class="header">
+      <div class="logo">ME</div>
+      <div class="header-text">
+        <h1>Listino Prezzi Netto</h1>
+        <p>Il Magazzino Edile S.r.l.</p>
+      </div>
+      <button class="btn btn-secondary reload-btn" id="btnReloadListino" style="margin-left: auto;">Aggiorna Listino (Excel)</button>
+    </div>
+    
+    <div class="search-wrap">
+      <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="search-input" id="searchInput" type="text" placeholder="Cerca articolo per nome, codice o fornitore..." autofocus>
+      <button class="search-clear" id="clearBtn">&times;</button>
+    </div>
+    
+    <div class="filters" id="filters" style="display:none;"></div>
+    <div class="filters-dropdowns" style="display:flex; gap: 10px; margin-bottom: 12px; flex-shrink: 0; align-items: center;">
+      <select id="filterCat" class="filter-select">
+        <option value="">Tutte le Categorie</option>
+      </select>
+      <select id="filterForn" class="filter-select">
+        <option value="">Tutti i Fornitori</option>
+      </select>
+      <button id="resetFiltersBtn" class="btn btn-secondary" style="flex: 0 auto; padding: 8px 12px; font-size: 11px;">&#10227; Reset Filtri</button>
+    </div>
+    <div class="results-info" id="resultsInfo"></div>
+    
+    <div class="table-wrap" id="tableWrap">
+      <table>
+        <thead><tr>
+          <th>Codice</th><th>Descrizione</th><th class="col-cat-th">Categoria</th><th class="col-forn-th">Fornitore</th>
+          <th class="r">Listino &euro;</th><th class="r">Sc.%</th><th class="r">Netto &euro;</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="emptyState">
+        <div class="empty-icon">&#128269;</div>
+        <div class="empty-text">Digita per cercare nel listino</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cart-panel" id="cartPanel">
+    <div class="cart-header">
+      <div class="cart-header-text"><h2>Preventivo</h2><p id="cartSubtitle">Seleziona articoli dal listino</p></div>
+      <div class="cart-badge" id="cartBadge">0</div>
+      <button class="modal-close mobile-only" id="cartCloseBtn" style="display:none; margin-left: 10px;">&times;</button>
+    </div>
+    <div class="cart-body" id="cartBody"></div>
+    <div class="cart-footer" id="cartFooter">
+      <div class="cart-totals">
+        <div class="cart-total-row"><span class="cart-total-label">Articoli</span><span class="cart-total-value" id="ftItems">0</span></div>
+        <div class="cart-total-row"><span class="cart-total-label">Totale Netto</span><span class="cart-total-value" id="ftNetto">&euro; 0,00</span></div>
+        <div class="cart-total-row"><span class="cart-total-label">IVA 22%</span><span class="cart-total-value" id="ftIva">&euro; 0,00</span></div>
+        <div class="cart-total-row grand"><span class="cart-total-label">Totale IVA incl.</span><span class="cart-total-value" id="ftTotale">&euro; 0,00</span></div>
+      </div>
+      <div class="cart-actions">
+        <button class="btn btn-danger" id="btnClear">&#128465; Svuota</button>
+        <button class="btn btn-primary" id="btnPrev">&#128196; Preventivo</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- MOBILE FAB -->
+  <button id="mobileCartBtn" class="mobile-fab" style="display:none;">
+    &#128196; Preventivo <span class="fab-badge" id="fabBadge">0</span>
+  </button>
+</div>
+
+<!-- ADD MODAL -->
+<div class="overlay" id="addOverlay">
+  <div class="modal" id="addModal">
+    <button class="modal-close" id="addCloseBtn">&times;</button>
+    <div class="modal-cod" id="mCod"></div>
+    <div class="modal-name" id="mName"></div>
+    <div class="modal-meta" id="mMeta"></div>
+    <div class="modal-price-row">
+      <div class="modal-price-main">
+        <span class="modal-price" id="mPrice"></span>
+        <span class="modal-price-unit">&euro;/unit&agrave; netto</span>
+      </div>
+      <div class="modal-price-detail" id="mDiscountDetail" style="display:none">
+        <span class="modal-price-orig" id="mOrigPrice"></span>
+        <span class="modal-disc-badge" id="mDiscBadge"></span>
+      </div>
+    </div>
+    <div class="modal-qty-section">
+      <div class="modal-qty-label">Quantit&agrave;</div>
+      <input type="number" class="modal-qty-input" id="mQty" value="1" min="1" step="1">
+      <div class="modal-quick-qty" id="quickQtyBtns"></div>
+    </div>
+    <div class="modal-subtotal">
+      <span class="modal-subtotal-label">Subtotale</span>
+      <span class="modal-subtotal-value" id="mSubtotal">&euro; 0,00</span>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-cancel" id="addCancelBtn">Annulla</button>
+      <button class="modal-btn modal-btn-add" id="mAddBtn">+ Aggiungi al preventivo</button>
+    </div>
+  </div>
+</div>
+
+<!-- PREVENTIVO -->
+<div class="print-overlay" id="prevOverlay">
+  <div class="print-modal" id="prevModal">
+    <div class="print-header">
+      <h2>&#128196; Riepilogo Preventivo</h2>
+      <button class="modal-close" id="prevCloseBtn">&times;</button>
+    </div>
+    <div class="print-body" id="prevBody"></div>
+    <div class="print-footer">
+      <button class="btn btn-secondary" id="prevCloseBtnFoot">Chiudi</button>
+      <button class="btn btn-secondary" id="prevExportBtn">&#128202; Esporta CSV</button>
+      <button class="btn btn-primary" id="prevPrintBtn" style="background:var(--accent)">&#128424; Stampa / PDF</button>
+      <button class="btn btn-primary" id="prevEmailBtn" style="background:var(--green); border:none;">&#128231; Email</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- SheetJS for Excel Parsing -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<!-- html2pdf for PDF export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<!-- App Logic -->
+<script src="app.js"></script>
+</body>
+</html>
