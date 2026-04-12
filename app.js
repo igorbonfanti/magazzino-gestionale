@@ -590,4 +590,12 @@ if ('serviceWorker' in navigator) {
       console.log('SW fallito', err);
     });
   });
+
+  // Fai un auto-refresh della pagina se il service worker rileva un aggiornamento (es. quando cambiamo la versione)
+  var refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function() {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
 }
