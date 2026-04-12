@@ -78,7 +78,7 @@ html,body{height:100vh;height:-webkit-fill-available;height:100dvh;font-family:'
 
 /* APP STRUCTURE */
 .app{display:flex;height:100%;min-height:100dvh}
-.catalog{flex:1;display:flex;flex-direction:column;padding:20px 20px 20px 24px;min-width:0}
+.catalog{flex:1;display:flex;flex-direction:column;padding:calc(20px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom)) 24px;min-width:0}
 .header{display:flex;align-items:center;gap:16px;padding:12px 0 16px;flex-shrink:0}
 .logo{width:40px;height:40px;background:linear-gradient(135deg,var(--accent),#d97706);border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:var(--bg)}
 .header-text h1{font-size:18px;font-weight:700;letter-spacing:-0.3px}
@@ -408,6 +408,17 @@ tr.in-cart .col-cod::after{content:" \2713";color:var(--green);font-size:10px}
   
   #mobileCartBtn {
     display: flex !important;
+    margin-bottom: env(safe-area-inset-bottom);
+  }
+
+  .cart-panel {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .print-modal, .modal {
+    max-height: calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 40px);
+    margin-top: env(safe-area-inset-top);
   }
 }
 
