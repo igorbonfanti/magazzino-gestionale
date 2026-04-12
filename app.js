@@ -465,6 +465,19 @@ prevOverlay.addEventListener('click',function(e){if(e.target===prevOverlay)close
 $('prevCloseBtn').addEventListener('click',closePrev);
 $('prevCloseBtnFoot').addEventListener('click',closePrev);
 
+// Swipe to close su Mobile
+var pMod = $('prevModal');
+var pTx = 0, pTy = 0;
+if(pMod){
+  pMod.addEventListener('touchstart', function(e){ pTx = e.changedTouches[0].screenX; pTy = e.changedTouches[0].screenY; }, {passive:true});
+  pMod.addEventListener('touchend', function(e){
+    var dx = e.changedTouches[0].screenX - pTx;
+    var dy = Math.abs(e.changedTouches[0].screenY - pTy);
+    // Se lo scorrimento supera 80px verso destra ed è prevalentemente orizzontale
+    if(dx > 80 && dx > dy * 1.5) closePrev();
+  }, {passive:true});
+}
+
 $('prevPrintBtn').addEventListener('click',function(){
   if(typeof html2pdf !== 'undefined') {
     var element = document.createElement('div');
