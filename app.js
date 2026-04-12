@@ -1,5 +1,6 @@
 // File Upload Elements
 var excelFile = document.getElementById('excelFile');
+var clientiFile = document.getElementById('clientiFile');
 var uploadStatus = document.getElementById('uploadStatus');
 var uploadOverlay = document.getElementById('uploadOverlay');
 var appContainer = document.getElementById('appContainer');
@@ -12,6 +13,14 @@ var currentItem = null;
 var activeFilterCat = '';
 var activeFilterForn = '';
 var debounceTimer = null;
+var CLIENTI = [];
+var starredItems = JSON.parse(localStorage.getItem('posStarred') || '[]');
+var currentCustomer = null;
+
+try {
+  var savedClienti = localStorage.getItem('posClientiData');
+  if(savedClienti) { CLIENTI = JSON.parse(savedClienti); }
+} catch(e){}
 
 // UI Elements
 function $(id){ return document.getElementById(id) }
@@ -176,6 +185,48 @@ excelFile.addEventListener('change', function(e) {
     reader.readAsBinaryString(file);
 });
 
+if(clientiFile) {
+  clientiFile.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if(!file) return;
+      uploadStatus.textContent = "Caricamento clienti in corso...";
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+          try {
+              const data = evt.target.result;
+              const workbook = XLSX.read(data, {type: 'binary'});
+              const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+              const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+              
+              let list = [];
+              for(let i=1; i<rows.length; i++) {
+                  let row = rows[i];
+                  if(!row || !row[1]) continue;
+                  list.push({
+                      ragione: String(row[1]).trim(),
+                      piva: row[2] ? String(row[2]).trim() : '',
+                      indirizzo: row[8] ? String(row[8]).trim() : '',
+                      citta: row[10] ? String(row[10]).trim() : ''
+                  });
+              }
+              CLIENTI = list;
+              try {
+                  localStorage.setItem('posClientiData', JSON.stringify(list));
+              } catch(e) {
+                  uploadStatus.innerHTML = '<span style="color:var(--danger)">Errore memoria: Database troppo grande ('+list.length+') per il browser.</span>';
+                  console.error("Quota esaurita", e);
+                  return;
+              }
+              uploadStatus.textContent = "Clienti caricati (" + list.length + ")! Ora carica il listino per accedere.";
+          } catch(err) {
+              uploadStatus.textContent = "Errore lettura file clienti.";
+              console.error(err);
+          }
+      };
+      reader.readAsBinaryString(file);
+  });
+}
+
 function initApp() {
     uploadOverlay.style.display = 'none';
     appContainer.style.display = 'flex';
@@ -274,34 +325,78 @@ function initApp() {
 });
 clearBtn.addEventListener('click',function(){searchInput.value='';clearBtn.classList.remove('visible');doSearch();searchInput.focus()});
 
+tableWrap.addEventListener('click', function(e){
+  var starBtn = e.target.closest('.star-btn');
+  if(starBtn) {
+    e.stopPropagation();
+    var cod = starBtn.getAttribute('data-cod');
+    var idx = starredItems.indexOf(cod);
+    if(idx > -1) {
+      starredItems.splice(idx, 1);
+      starBtn.classList.remove('star-active');
+      starBtn.innerHTML = '&#9734;';
+    } else {
+      starredItems.push(cod);
+      starBtn.classList.add('star-active');
+      starBtn.innerHTML = '&#9733;';
+    }
+    localStorage.setItem('posStarred', JSON.stringify(starredItems));
+    if(!searchInput.value.trim() && !activeFilterCat && !activeFilterForn) doSearch(); // refresh default view
+  }
+});
+
 function doSearch(){
   var terms=searchInput.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  var results=ITEMS.filter(function(item){
-    if(activeFilterCat && item.grp !== activeFilterCat) return false;
-    if(activeFilterForn && item.forn !== activeFilterForn) return false;
-    if(!terms.length)return true;
-    return terms.every(function(t){return item._s.indexOf(t)!==-1});
-  });
+  var results = [];
+  var isDefault = false;
+  
+  if(!terms.length && !activeFilterCat && !activeFilterForn && starredItems.length > 0) {
+      results = ITEMS.filter(function(it){ return starredItems.includes(it.cod); });
+      isDefault = true;
+  } else {
+      results=ITEMS.filter(function(item){
+        if(activeFilterCat && item.grp !== activeFilterCat) return false;
+        if(activeFilterForn && item.forn !== activeFilterForn) return false;
+        if(!terms.length)return true;
+        return terms.every(function(t){return item._s.indexOf(t)!==-1});
+      });
+  }
   var MAX=200,showing=results.slice(0,MAX);
   var cartCods={};cart.forEach(function(c){cartCods[c.item.cod]=true});
 
   if(!results.length&&(terms.length||activeFilterCat||activeFilterForn)){
+    tableWrap.style.display='block';
     tbody.innerHTML='';emptyState.style.display='flex';
     emptyState.querySelector('.empty-text').textContent='Nessun articolo trovato';
     resultsInfo.innerHTML='';return;
   }
+  if(!results.length && !terms.length && !starredItems.length) {
+    tableWrap.style.display='block';
+    tbody.innerHTML='';emptyState.style.display='flex';
+    emptyState.querySelector('.empty-text').textContent='Digita per cercare o aggiungi preferiti';
+    resultsInfo.innerHTML='';return;
+  }
+  
   emptyState.style.display='none';
-  resultsInfo.innerHTML='<span>'+results.length.toLocaleString('it')+'</span> risultati'+(results.length>MAX?' \u2014 primi <span>'+MAX+'</span>':'');
+  if(isDefault) {
+      resultsInfo.innerHTML='<span>&#9733; Articoli Preferiti ('+results.length+')</span>';
+  } else {
+      resultsInfo.innerHTML='<span>'+results.length.toLocaleString('it')+'</span> risultati'+(results.length>MAX?' \u2014 primi <span>'+MAX+'</span>':'');
+  }
 
   var frag=document.createDocumentFragment();
   showing.forEach(function(item){
     var tr=document.createElement('tr');
     if(cartCods[item.cod])tr.className='in-cart';
-    tr.addEventListener('click',function(){openAddModal(item)});
+    tr.addEventListener('click',function(e){ 
+       if(!e.target.closest('.star-btn')) openAddModal(item); 
+    });
     var dH=terms.length?hl(item.desc,terms):esc(item.desc);
     var cH=terms.length?hl(item.cod,terms):esc(item.cod);
     var discHtml = item.sconto > 0 ? ('-'+item.sconto+'%') : '';
-    tr.innerHTML='<td class="col-cod">'+cH+'</td>'
+    var isStar = starredItems.includes(item.cod);
+    tr.innerHTML='<td class="col-star"><span class="star-btn '+(isStar?'star-active':'')+'" data-cod="'+esc(item.cod)+'">'+(isStar?'&#9733;':'&#9734;')+'</span></td>'
+      +'<td class="col-cod">'+cH+'</td>'
       +'<td class="col-desc">'+dH+'</td>'
       +'<td class="col-cat">'+esc(item.grp?titleCase(item.grp):'\u2014')+'</td>'
       +'<td class="col-forn">'+esc(item.forn||'\u2014')+'</td>'
@@ -478,13 +573,81 @@ if(pMod){
   }, {passive:true});
 }
 
+// Autocomplete Logica Clienti
+var custSearch = $('customerSearch');
+var custRes = $('customerResults');
+var selCustBox = $('selectedCustomerBox');
+
+if(custSearch) {
+  custSearch.addEventListener('input', function(){
+    var q = this.value.toLowerCase().trim();
+    if(CLIENTI.length === 0) { custRes.style.display = 'none'; return; }
+    if(q.length < 2) { custRes.style.display = 'none'; return; }
+    var arr = CLIENTI.filter(function(c){ 
+      return (c.ragione && c.ragione.toLowerCase().includes(q)) || (c.piva && c.piva.toLowerCase().includes(q)); 
+    }).slice(0, 20);
+    
+    if(!arr.length) { custRes.style.display = 'none'; return; }
+    
+    var html = '';
+    arr.forEach(function(c, i){
+      html += '<div class="customer-row" data-idx="'+i+'" style="padding:10px 14px; border-bottom:1px solid var(--border); cursor:pointer;">'
+           + '<div style="font-weight:600; font-size:13px; color:var(--text);">' + c.ragione + '</div>'
+           + '<div style="font-size:11px; color:var(--text3);">' + c.citta + (c.piva ? ' - P.IVA: '+c.piva : '') + '</div></div>';
+    });
+    custRes.innerHTML = html;
+    custRes.style.display = 'block';
+    custRes.currentResults = arr;
+  });
+
+  custRes.addEventListener('click', function(e){
+    var row = e.target.closest('.customer-row');
+    if(!row) return;
+    var idx = row.getAttribute('data-idx');
+    currentCustomer = custRes.currentResults[idx];
+    
+    custSearch.value = '';
+    custRes.style.display = 'none';
+    custSearch.parentElement.style.display = 'none';
+    
+    $('scRagione').textContent = currentCustomer.ragione;
+    $('scIndirizzo').textContent = currentCustomer.indirizzo;
+    $('scCitta').textContent = currentCustomer.citta;
+    $('scPiva').textContent = currentCustomer.piva;
+    selCustBox.style.display = 'block';
+  });
+
+  $('btnRemoveCustomer').addEventListener('click', function(){
+    currentCustomer = null;
+    selCustBox.style.display = 'none';
+    custSearch.parentElement.style.display = 'block';
+    custSearch.focus();
+  });
+}
+
 $('prevPrintBtn').addEventListener('click',function(){
   if(typeof html2pdf !== 'undefined') {
     var element = document.createElement('div');
     var today = new Date().toLocaleDateString('it-IT');
+    var custHtml = '';
+    if (currentCustomer) {
+       custHtml = '<div style="text-align:right; font-size:13px; margin-bottom:24px;">'
+                + '<div><strong>Spett.le</strong></div>'
+                + '<div style="font-size:16px; font-weight:bold; color:#000;">'+currentCustomer.ragione+'</div>'
+                + '<div>'+currentCustomer.indirizzo+'</div>'
+                + '<div>'+currentCustomer.citta+'</div>'
+                + (currentCustomer.piva ? '<div>P.IVA: '+currentCustomer.piva+'</div>' : '')
+                + '</div>';
+    }
+
     element.innerHTML = '<div style="padding:40px; color:#222; font-family:Arial,sans-serif;">'
+      + '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:30px;">'
+      + '<div>'
       + '<h1>Il Magazzino Edile S.r.l.</h1>'
-      + '<div style="color:#666; font-size:12px; margin-bottom:24px;">Preventivo del '+today+'</div>'
+      + '<div style="color:#666; font-size:12px;">Preventivo del '+today+'</div>'
+      + '</div>'
+      + custHtml
+      + '</div>'
       + $('prevBody').innerHTML
       + '</div>';
     var style = document.createElement('style');
@@ -524,8 +687,11 @@ $('prevPrintBtn').addEventListener('click',function(){
       +'.prev-cod{font-family:monospace;font-size:11px;color:#b45309}'
       +'.prev-total-val{font-family:monospace;color:#16a34a}'
       +'</style></head><body>'
-      +'<h1>Il Magazzino Edile S.r.l.</h1>'
-      +'<div class="sub">Preventivo del '+new Date().toLocaleDateString('it-IT')+'</div>'
+      +'<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:30px;">'
+      +'<div><h1>Il Magazzino Edile S.r.l.</h1>'
+      +'<div class="sub">Preventivo del '+new Date().toLocaleDateString('it-IT')+'</div></div>'
+      +(currentCustomer ? '<div style="text-align:right; font-size:13px;"><div><strong>Spett.le</strong></div><div style="font-size:16px; font-weight:bold;">'+currentCustomer.ragione+'</div><div>'+currentCustomer.indirizzo+'</div><div>'+currentCustomer.citta+'</div>'+(currentCustomer.piva?'<div>P.IVA: '+currentCustomer.piva+'</div>':'')+'</div>' : '')
+      +'</div>'
       +content+'</body></html>');
     w.document.close();
     setTimeout(function(){w.print()},300);
@@ -534,7 +700,9 @@ $('prevPrintBtn').addEventListener('click',function(){
 
 $('prevEmailBtn').addEventListener('click', function() {
     if(!cart.length) return;
-    var bodyText = "In allegato i dettagli del Preventivo.\n\nElenco:\n";
+    var bodyText = "In allegato i dettagli del Preventivo.\n\n";
+    if(currentCustomer) bodyText += "Spett.le " + currentCustomer.ragione + "\n\n";
+    bodyText += "Elenco:\n";
     var netto = 0;
     cart.forEach(function(c){
         var sub = c.qty * (c.item.net || 0);

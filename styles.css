@@ -296,6 +296,14 @@ tr.in-cart .col-cod::after{content:" \2713";color:var(--green);font-size:10px}
 .modal-btn-cancel{background:var(--surface3);color:var(--text2)}
 .modal-btn-cancel:hover{background:var(--border);color:var(--text)}
 
+/* STAR BUTTONS */
+.col-star { width:30px; text-align:center; padding:0 4px !important; }
+.star-btn { color:var(--text3); font-size:18px; cursor:pointer; transition:all 0.2s; user-select:none; }
+.star-btn:hover { color:var(--text2); transform:scale(1.1); }
+.star-btn.star-active { color:var(--accent2); text-shadow:0 0 8px var(--accent-bg); }
+/* CUSTOMER ROWS */
+.customer-row:hover { background:var(--surface); }
+
 /* PRINT */
 .print-overlay{
   position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);
