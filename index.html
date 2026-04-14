@@ -15,23 +15,15 @@
 </head>
 <body>
 
-<!-- UPLOAD OVERLAY (Only visible until an Excel file is loaded) -->
+<!-- SYNC OVERLAY (Visible during cloud check) -->
 <div class="upload-overlay" id="uploadOverlay">
     <div class="upload-card">
-        <div class="upload-icon">📊</div>
-        <h2>Carica il Listino Excel</h2>
-        <p>Seleziona o trascina qui il file Excel "ILMAGAZZINOEDILE".<br>I dati verranno salvati nel browser per gli utilizzi futuri.</p>
-        
-        <label for="excelFile" class="upload-btn" style="margin-bottom:10px; display:block;">
-            1. Scegli Listino (Obbligatorio)
-            <input type="file" id="excelFile" accept=".xlsx, .xls">
-        </label>
-        <label for="clientiFile" class="upload-btn" style="background:var(--surface3); color:var(--text); display:block;">
-            2. Scegli Clienti (Opzionale)
-            <input type="file" id="clientiFile" accept=".xlsx, .xls">
-        </label>
-        
-        <div id="uploadStatus" class="upload-status"></div>
+        <div class="upload-icon">☁️</div>
+        <h2>Sincronizzazione Cloud</h2>
+        <p>Verifica aggiornamenti Listino e Clienti in corso...</p>
+        <div class="spinner" style="margin: 20px auto; width: 40px; height: 40px; border: 4px solid var(--border); border-top: 4px solid var(--accent); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+        <div id="uploadStatus" class="upload-status" style="font-weight:600;">Connessione al server Firebase...</div>
     </div>
 </div>
 
@@ -42,10 +34,10 @@
       <div class="logo">ME</div>
       <div class="header-text">
         <h1>Listino Prezzi Netto</h1>
-        <p>Il Magazzino Edile S.r.l. <span class="app-version" style="opacity:0.6; font-size:10px; margin-left: 6px; font-family:'JetBrains Mono',monospace;">v1.3.0</span></p>
+        <p>Il Magazzino Edile S.r.l. <span class="app-version" style="opacity:0.6; font-size:10px; margin-left: 6px; font-family:'JetBrains Mono',monospace;">v2.0.0</span></p>
       </div>
       <button class="btn btn-secondary" id="btnStorico" style="margin-left: auto; margin-right: 10px; background: var(--surface2); border: 1px solid var(--border);">📜 Storico Preventivi</button>
-      <button class="btn btn-secondary reload-btn" id="btnReloadListino">Aggiorna Listino (Excel)</button>
+      <button class="btn btn-secondary reload-btn" id="btnReloadListino">⬇️ Forza Sync Cloud</button>
     </div>
     
     <div class="search-wrap">
@@ -189,7 +181,7 @@
     </div>
     <div class="print-footer">
       <button class="btn btn-secondary" id="prevCloseBtnFoot">Chiudi</button>
-      <button class="btn btn-secondary" id="prevExportBtn">&#128202; Esporta CSV</button>
+      <button class="btn btn-secondary" id="prevExportBtn">&#128202; Esporta Excel</button>
       <button class="btn btn-primary" id="prevPrintBtn" style="background:var(--accent)">&#128424; Stampa / PDF</button>
       <button class="btn btn-primary" id="prevEmailBtn" style="background:var(--green); border:none;">&#128231; Email</button>
     </div>
@@ -264,6 +256,7 @@
 <!-- Firebase Compat Scripts -->
 <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-storage-compat.js"></script>
 
 <!-- SheetJS for Excel Parsing -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>

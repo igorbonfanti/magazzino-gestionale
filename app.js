@@ -1,6 +1,4 @@
-// File Upload Elements
-var excelFile = document.getElementById('excelFile');
-var clientiFile = document.getElementById('clientiFile');
+// Cloud Sync Elements
 var uploadStatus = document.getElementById('uploadStatus');
 var uploadOverlay = document.getElementById('uploadOverlay');
 var appContainer = document.getElementById('appContainer');
@@ -48,122 +46,100 @@ var searchInput=$('searchInput'), clearBtn=$('clearBtn'), tbody=$('tbody'),
 
 function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function fp(p){return p!=null?p.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}):'\u2014'}
+function ro2(n){return Math.round((n + Number.EPSILON) * 100) / 100;}
 function titleCase(s){return s.split(' ').map(function(w){return w.charAt(0)+w.slice(1).toLowerCase()}).join(' ')}
 function hl(text,terms){var r=esc(text);terms.forEach(function(t){r=r.replace(new RegExp('('+t.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&')+')','gi'),'<span class="highlight">$1</span>')});return r}
 
 // --- Initialization & Setup ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Check if we have saved data
-    const savedData = localStorage.getItem('posListData');
-    if (savedData) {
-        try {
-            ITEMS = JSON.parse(savedData);
-            if (ITEMS.length > 0) {
-                initApp();
-            }
-        } catch (e) {
-            console.error("Errore nel parse dei dati salvati", e);
-            localStorage.removeItem('posListData');
-        }
-    }
+    checkCloudUpdates();
 });
 
 btnReloadListino.addEventListener('click', () => {
-    if(confirm('Vuoi caricare un nuovo file Excel? Questo chiuderà la sessione attuale e il preventivo in corso.')){
-        appContainer.style.display = 'none';
-        uploadOverlay.style.display = 'flex';
-        uploadStatus.textContent = '';
-        excelFile.value = '';
+    if(confirm('Vuoi forzare il ricalcolo dal Cloud? Questo chiuderà la sessione attuale.')){
+        localStorage.removeItem('posListinoDate');
+        localStorage.removeItem('posClientiDate');
+        window.location.reload();
     }
 });
 
-excelFile.addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if(!file) return;
-
-    uploadStatus.textContent = "Caricamento in corso, attendere...";
+async function checkCloudUpdates() {
+    uploadOverlay.style.display = 'flex';
+    if(!firebase.apps.length || !firebase.storage) {
+        uploadStatus.innerHTML = '<span style="color:var(--danger)">Firebase Storage non configurato</span>';
+        setTimeout(initAppFallback, 2000);
+        return;
+    }
     
-    const reader = new FileReader();
-    reader.onload = function(evt) {
-        try {
-            const data = evt.target.result;
-            const workbook = XLSX.read(data, {type: 'binary'});
-            const firstSheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[firstSheetName];
+    var storage = firebase.storage();
+    
+    try {
+        // 1. Check Listino
+        uploadStatus.textContent = "Verifica listino sul server cloud...";
+        var listinoRef = storage.ref('listino.xlsx');
+        var lMeta = await listinoRef.getMetadata().catch(e => null);
+        
+        var lCachedDate = localStorage.getItem('posListinoDate');
+        var lNeedsUpdate = false;
+        
+        if(lMeta) {
+            if(!lCachedDate || lCachedDate !== lMeta.updated) lNeedsUpdate = true;
+        } else if(!localStorage.getItem('posListData')) {
+             throw new Error("Listino 'listino.xlsx' non trovato nel cloud e non presente in memoria.");
+        }
+        
+        if(lNeedsUpdate && lMeta) {
+            uploadStatus.textContent = "Scaricamento listino in corso (" + (lMeta.size/1024/1024).toFixed(1) + " MB)...";
+            var lUrl = await listinoRef.getDownloadURL();
+            var lRes = await fetch(lUrl);
+            var lBlob = await lRes.arrayBuffer();
             
+            uploadStatus.textContent = "Elaborazione dati listino...";
+            const workbook = XLSX.read(lBlob, {type: 'array'});
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
-            if(rows.length === 0) {
-                uploadStatus.textContent = "Il file Excel è vuoto.";
-                return;
-            }
-
-            // Find header indexes
+            
             let headerRowIndex = -1;
             let colIdx = { cod: -1, desc: -1, price: -1, cat: -1, forn: -1, discount: -1 };
-
             for(let i=0; i<Math.min(10, rows.length); i++) {
                 const row = rows[i];
                 if(!row) continue;
-                
                 const strRow = row.map(c => String(c).toLowerCase());
                 const codIdx = strRow.findIndex(c => c.includes('articolo'));
                 const descIdx = strRow.findIndex(c => c.includes('descrizione') && !c.includes('categoria') && !c.includes('gruppo') && !c.includes('fornitore'));
                 const priceIdx = strRow.findIndex(c => c.includes('prezzo 1') || c.includes('prezzo'));
-                
-                // Explicit mapping requested by user:
-                // Column F (Index 5) = Sconto
-                // Column I (Index 8) = Fornitore
-                // Column K (Index 10) = Categoria
-                const discountIdx = 5;
-                const fornIdx = 8;
-                const catIdx = 10;
-
+                const discountIdx = 5; const fornIdx = 8; const catIdx = 10;
                 if(codIdx !== -1 && descIdx !== -1 && priceIdx !== -1) {
-                    headerRowIndex = i;
-                    colIdx = {
-                        cod: codIdx, desc: descIdx, price: priceIdx, 
-                        cat: catIdx !== -1 ? catIdx : -1,
-                        forn: fornIdx !== -1 ? fornIdx : -1,
-                        discount: discountIdx !== -1 ? discountIdx : -1
-                    };
+                    headerRowIndex = i; colIdx = { cod: codIdx, desc: descIdx, price: priceIdx, cat: catIdx !== -1 ? catIdx : -1, forn: fornIdx !== -1 ? fornIdx : -1, discount: discountIdx !== -1 ? discountIdx : -1 };
                     break;
                 }
             }
-
-            if(headerRowIndex === -1) {
-                uploadStatus.textContent = "Impossibile trovare le colonne Articolo, Descrizione e Prezzo.";
-                return;
-            }
-
-            ITEMS = [];
+            if(headerRowIndex === -1) throw new Error("Colonne listino errate: assicurati che le intestazioni includano 'articolo', 'descrizione' e 'prezzo'.");
+            
+            let list = [];
             for(let i = headerRowIndex + 1; i < rows.length; i++) {
                 const row = rows[i];
-                if(!row || !row[colIdx.cod]) continue; // Skip empty rows or rows without a code
+                if(!row || !row[colIdx.cod]) continue;
 
                 let prezzo = row[colIdx.price];
-                if (typeof prezzo === 'string') {
-                    // Replace comma with dot and parse
-                    prezzo = parseFloat(prezzo.replace(',', '.').replace(/[^0-9.]/g, ''));
-                }
+                if (typeof prezzo === 'string') prezzo = parseFloat(prezzo.replace(',', '.').replace(/[^0-9.]/g, ''));
                 if (isNaN(prezzo)) prezzo = 0;
 
                 const cod = String(row[colIdx.cod] || '').trim();
                 const desc = String(row[colIdx.desc] || '').trim();
-                const grp = colIdx.cat !== -1 ? String(row[colIdx.cat] || '').trim() : '';
-                const forn = colIdx.forn !== -1 ? String(row[colIdx.forn] || '').trim() : '';
+                const grp = colIdx.cat !== -1 && row[colIdx.cat] ? String(row[colIdx.cat] || '').trim() : '';
+                const forn = colIdx.forn !== -1 && row[colIdx.forn] ? String(row[colIdx.forn] || '').trim() : '';
 
                 let sconto = 0;
-                if (colIdx.discount !== -1) {
+                if (colIdx.discount !== -1 && row[colIdx.discount]) {
                     let rawSconto = row[colIdx.discount];
-                    if (typeof rawSconto === 'string') {
-                        rawSconto = parseFloat(rawSconto.replace(',', '.').replace(/[^0-9.-]/g, ''));
-                    }
+                    if (typeof rawSconto === 'string') rawSconto = parseFloat(rawSconto.replace(',', '.').replace(/[^0-9.-]/g, ''));
                     if (!isNaN(rawSconto)) sconto = rawSconto;
                 }
 
                 let net = prezzo;
                 if (sconto > 0) {
-                    if (sconto <= 1) sconto = Math.round(sconto * 10000) / 100; // handle raw excel decimals: 0.15 -> 15
+                    if (sconto <= 1) sconto = Math.round(sconto * 10000) / 100;
                     net = Math.round(prezzo * (1 - sconto/100) * 100) / 100;
                 } else if (sconto < 0) { 
                     sconto = Math.abs(sconto);
@@ -171,76 +147,68 @@ excelFile.addEventListener('change', function(e) {
                     net = Math.round(prezzo * (1 - sconto/100) * 100) / 100;
                 }
 
-                ITEMS.push({
-                    cod: cod,
-                    desc: desc,
-                    prezzo: prezzo,
-                    sconto: sconto,
-                    net: net,
-                    grp: grp,
-                    forn: forn,
-                    _s: (cod + '|' + desc + '|' + forn).toLowerCase()
+                list.push({ cod: cod, desc: desc, prezzo: prezzo, sconto: sconto, net: net, grp: grp, forn: forn, _s: (cod + '|' + desc + '|' + forn).toLowerCase() });
+            }
+            localStorage.setItem('posListData', JSON.stringify(list));
+            localStorage.setItem('posListinoDate', lMeta.updated);
+        }
+        
+        // 2. Check Clienti
+        uploadStatus.textContent = "Verifica archivio clienti sul server...";
+        var clientiRef = storage.ref('clienti.xlsx');
+        var cMeta = await clientiRef.getMetadata().catch(e => null);
+        var cCachedDate = localStorage.getItem('posClientiDate');
+        var cNeedsUpdate = false;
+        
+        if(cMeta) {
+            if(!cCachedDate || cCachedDate !== cMeta.updated) cNeedsUpdate = true;
+        }
+        
+        if(cNeedsUpdate && cMeta) {
+            uploadStatus.textContent = "Scaricamento clienti.xlsx in corso (" + (cMeta.size/1024/1024).toFixed(1) + " MB)...";
+            var cUrl = await clientiRef.getDownloadURL();
+            var cRes = await fetch(cUrl);
+            var cBlob = await cRes.arrayBuffer();
+            
+            const workbook = XLSX.read(cBlob, {type: 'array'});
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+            
+            let list = [];
+            for(let i=1; i<rows.length; i++) {
+                let row = rows[i];
+                if(!row || !row[1]) continue;
+                list.push({
+                    ragione: String(row[1]).trim(),
+                    piva: row[2] ? String(row[2]).trim() : '',
+                    email: row[7] ? String(row[7]).trim() : '',
+                    indirizzo: row[8] ? String(row[8]).trim() : '',
+                    citta: row[10] ? String(row[10]).trim() : ''
                 });
             }
-
-            localStorage.setItem('posListData', JSON.stringify(ITEMS));
-            showToast("Listino aggiornato con successo!");
-            initApp();
-
-        } catch (error) {
-            console.error(error);
-            uploadStatus.textContent = "Errore durante l'analisi del file Excel.";
+            localStorage.setItem('posClientiData', JSON.stringify(list));
+            localStorage.setItem('posClientiDate', cMeta.updated);
         }
-    };
-    reader.onerror = function(ex) {
-        uploadStatus.textContent = "Errore durante la lettura del file.";
-        console.error(ex);
-    };
-    
-    reader.readAsBinaryString(file);
-});
+        
+        initAppFallback();
+        
+    } catch(err) {
+        console.error(err);
+        uploadStatus.innerHTML = '<span style="color:var(--danger)">Errore Cloud: ' + err.message + '<br>Avvio con backup memoria offline in 3s...</span>';
+        setTimeout(initAppFallback, 3000);
+    }
+}
 
-if(clientiFile) {
-  clientiFile.addEventListener('change', function(e) {
-      const file = e.target.files[0];
-      if(!file) return;
-      uploadStatus.textContent = "Caricamento clienti in corso...";
-      const reader = new FileReader();
-      reader.onload = function(evt) {
-          try {
-              const data = evt.target.result;
-              const workbook = XLSX.read(data, {type: 'binary'});
-              const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-              const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
-              
-              let list = [];
-              for(let i=1; i<rows.length; i++) {
-                  let row = rows[i];
-                  if(!row || !row[1]) continue;
-                  list.push({
-                      ragione: String(row[1]).trim(),
-                      piva: row[2] ? String(row[2]).trim() : '',
-                      email: row[7] ? String(row[7]).trim() : '',
-                      indirizzo: row[8] ? String(row[8]).trim() : '',
-                      citta: row[10] ? String(row[10]).trim() : ''
-                  });
-              }
-              CLIENTI = list;
-              try {
-                  localStorage.setItem('posClientiData', JSON.stringify(list));
-              } catch(e) {
-                  uploadStatus.innerHTML = '<span style="color:var(--danger)">Errore memoria: Database troppo grande ('+list.length+') per il browser.</span>';
-                  console.error("Quota esaurita", e);
-                  return;
-              }
-              uploadStatus.textContent = "Clienti caricati (" + list.length + ")! Ora carica il listino per accedere.";
-          } catch(err) {
-              uploadStatus.textContent = "Errore lettura file clienti.";
-              console.error(err);
-          }
-      };
-      reader.readAsBinaryString(file);
-  });
+function initAppFallback() {
+    const listData = localStorage.getItem('posListData');
+    const cliData = localStorage.getItem('posClientiData');
+    if(listData) {
+        ITEMS = JSON.parse(listData);
+        if(cliData) CLIENTI = JSON.parse(cliData);
+        initApp();
+    } else {
+        uploadStatus.innerHTML = '<span style="color:var(--danger)">Nessun listino offline disponibile e impossibile scaricarlo. Contatta l\'amministratore.</span>';
+    }
 }
 
 function initApp() {
@@ -469,7 +437,9 @@ function updateSubtotal(){
   var mED = $('mExtraDiscount');
   var ed = mED ? (parseFloat(mED.value)||0) : 0;
   if(ed > 0) p = p * (1 - ed/100);
-  $('mSubtotal').textContent='\u20ac '+fp(q*p);
+  p = ro2(p);
+  var sub = ro2(q * p);
+  $('mSubtotal').textContent='\u20ac '+fp(sub);
 }
 
 $('mAddBtn').addEventListener('click',function(){
@@ -502,7 +472,8 @@ function renderCart(){
   cart.forEach(function(c,idx){
     var unitNet = c.item.net;
     if(c.extraDiscount > 0) unitNet = unitNet * (1 - c.extraDiscount/100);
-    var sub=c.qty*(unitNet||0);
+    unitNet = ro2(unitNet);
+    var sub=ro2(c.qty*(unitNet||0));
     var discParts = [];
     if(c.item.sconto > 0) discParts.push('-'+c.item.sconto+'%');
     if(c.extraDiscount > 0) discParts.push('extra -'+c.extraDiscount+'%');
@@ -542,13 +513,16 @@ function updateTotals(){
   cart.forEach(function(c){
     var unitNet = c.item.net;
     if(c.extraDiscount > 0) unitNet = unitNet * (1 - c.extraDiscount/100);
-    nItems+=c.qty;netto+=c.qty*(unitNet||0);
+    unitNet = ro2(unitNet);
+    nItems+=c.qty;
+    netto+=ro2(c.qty*(unitNet||0));
   });
-  var iva=netto*0.22;
+  netto = ro2(netto);
+  var iva=ro2(netto*0.22);
   $('ftItems').textContent=nItems;
   $('ftNetto').textContent='\u20ac '+fp(netto);
   $('ftIva').textContent='\u20ac '+fp(iva);
-  $('ftTotale').textContent='\u20ac '+fp(netto+iva);
+  $('ftTotale').textContent='\u20ac '+fp(ro2(netto+iva));
   if(fabBadge) fabBadge.textContent=cart.length;
 }
 
@@ -590,7 +564,9 @@ function renderPrevBody() {
   cart.forEach(function(c){
     var unitNet = c.item.net;
     if(c.extraDiscount > 0) unitNet = unitNet * (1 - c.extraDiscount/100);
-    var sub=c.qty*(unitNet||0);netto+=sub;
+    unitNet = ro2(unitNet);
+    var sub=ro2(c.qty*(unitNet||0));
+    netto+=sub;
     var discParts = [];
     if(c.item.sconto > 0) discParts.push('-'+c.item.sconto+'%');
     if(c.extraDiscount > 0) discParts.push('-'+c.extraDiscount+'%');
@@ -600,14 +576,15 @@ function renderPrevBody() {
       +'</td><td class="r">'+fp(unitNet)+'</td><td class="r">'+c.qty
       +'</td><td class="r">'+fp(sub)+'</td></tr>';
   });
-  var baseIva=netto*0.22;
-  var totIvaInc=netto+baseIva;
+  netto = ro2(netto);
+  var baseIva = ro2(netto*0.22);
+  var totIvaInc = ro2(netto+baseIva);
   
   var globalDiscount = getGlobalDiscountVal();
-  var finalTotIvaInc = totIvaInc - globalDiscount;
+  var finalTotIvaInc = ro2(totIvaInc - globalDiscount);
   if(finalTotIvaInc < 0) finalTotIvaInc = 0;
-  var finalNetto = finalTotIvaInc / 1.22;
-  var finalIva = finalTotIvaInc - finalNetto;
+  var finalNetto = ro2(finalTotIvaInc / 1.22);
+  var finalIva = ro2(finalTotIvaInc - finalNetto);
 
   var today=new Date().toLocaleDateString('it-IT');
   var html = '<div style="margin-bottom:20px"><div style="font-size:11px;color:var(--text3)">Il Magazzino Edile S.r.l. \u2014 Preventivo del '+today+'</div></div>'
@@ -807,7 +784,8 @@ async function saveQuoteToCloud(type) {
         var itemsForDb = cart.map(function(c){
            var unitNet = c.item.net;
            if(c.extraDiscount > 0) unitNet = unitNet * (1 - c.extraDiscount/100);
-           var sub = c.qty*(unitNet||0);
+           unitNet = ro2(unitNet);
+           var sub = ro2(c.qty*(unitNet||0));
            netto += sub;
            return {
                cod: c.item.cod, desc: c.item.desc, qty: c.qty, 
@@ -815,12 +793,13 @@ async function saveQuoteToCloud(type) {
            };
         });
         
-        var baseIva = netto * 0.22;
-        var totIvaInc = netto + baseIva;
+        netto = ro2(netto);
+        var baseIva = ro2(netto * 0.22);
+        var totIvaInc = ro2(netto + baseIva);
         var globalDiscount = getGlobalDiscountVal();
-        var finalTotIvaInc = totIvaInc - globalDiscount;
+        var finalTotIvaInc = ro2(totIvaInc - globalDiscount);
         if(finalTotIvaInc < 0) finalTotIvaInc = 0;
-        var finalNetto = finalTotIvaInc / 1.22;
+        var finalNetto = ro2(finalTotIvaInc / 1.22);
         
         var quoteData = {
            quoteId: quoteId,
@@ -857,7 +836,8 @@ $('prevEmailBtn').addEventListener('click', async function() {
     cart.forEach(function(c){
         var unitNet = c.item.net;
         if(c.extraDiscount > 0) unitNet = unitNet * (1 - c.extraDiscount/100);
-        var sub = c.qty * (unitNet || 0);
+        unitNet = ro2(unitNet);
+        var sub = ro2(c.qty * (unitNet || 0));
         netto += sub;
         var discText = "";
         var discParts = [];
@@ -868,13 +848,14 @@ $('prevEmailBtn').addEventListener('click', async function() {
         bodyText += "- " + c.qty + "x " + c.item.desc + discText + " (E. " + fp(sub) + ")\n";
     });
     
-    var baseIva = netto * 0.22;
-    var totIvaInc = netto + baseIva;
+    netto = ro2(netto);
+    var baseIva = ro2(netto * 0.22);
+    var totIvaInc = ro2(netto + baseIva);
     var globalDiscount = getGlobalDiscountVal();
-    var finalTotIvaInc = totIvaInc - globalDiscount;
+    var finalTotIvaInc = ro2(totIvaInc - globalDiscount);
     if(finalTotIvaInc < 0) finalTotIvaInc = 0;
-    var finalNetto = finalTotIvaInc / 1.22;
-    var finalIva = finalTotIvaInc - finalNetto;
+    var finalNetto = ro2(finalTotIvaInc / 1.22);
+    var finalIva = ro2(finalTotIvaInc - finalNetto);
 
     if(globalDiscount > 0) {
         bodyText += "\nSconto di Cassa (IVA inclusa): -E. " + fp(globalDiscount);
@@ -896,19 +877,59 @@ $('prevEmailBtn').addEventListener('click', async function() {
 
 $('prevExportBtn').addEventListener('click',function(){
   if(!cart.length)return;
-  var csv='Codice;Descrizione;Prezzo Listino;Sconto %;Prezzo Netto;Quantita;Totale\n';
-  var netto=0;
-  cart.forEach(function(c){
-    var sub=c.qty*(c.item.net||0);netto+=sub;
-    csv+='"'+c.item.cod+'";"'+c.item.desc+'";'+(c.item.prezzo||0).toFixed(2)+';'+(c.item.sconto||0)+';'+(c.item.net||0).toFixed(2)+';'+c.qty+';'+sub.toFixed(2)+'\n';
+  if(typeof XLSX === 'undefined') {
+     showToast('Libreria Excel non caricata, riprova.');
+     return;
+  }
+  
+  var ws_name = "Preventivo";
+  var wb = XLSX.utils.book_new();
+  
+  var ws_data = [
+    ['Codice', 'Descrizione', 'Prezzo Listino', 'Sconto 1 %', 'Sconto 2 %', 'Prezzo Netto', 'Quantita', 'Totale Riga']
+  ];
+  
+  cart.forEach(function(c, i){
+    var r = i + 2;
+    var listino = c.item.prezzo || 0;
+    var sc1 = c.item.sconto || 0;
+    var sc2 = c.extraDiscount || 0;
+    var qty = c.qty || 1;
+    
+    ws_data.push([
+      c.item.cod,
+      c.item.desc,
+      listino,
+      sc1,
+      sc2,
+      { t: 'n', f: 'ROUND(C'+r+'*(1-D'+r+'/100)*(1-E'+r+'/100), 2)' },
+      qty,
+      { t: 'n', f: 'ROUND(F'+r+'*G'+r+', 2)' }
+    ]);
   });
-  csv+=';;;;;"Totale Netto";'+netto.toFixed(2)+'\n';
-  csv+=';;;;;"IVA 22%";'+(netto*0.22).toFixed(2)+'\n';
-  csv+=';;;;;"Totale";'+(netto*1.22).toFixed(2)+'\n';
-  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-  var a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='preventivo_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
-  showToast('CSV esportato');
+  
+  var n = cart.length + 1;
+  var off = n + 1;
+  
+  ws_data.push(["", "", "", "", "", "Totale Netto", "", { t:'n', f:'ROUND(SUM(H2:H'+n+'), 2)' }]);
+  ws_data.push(["", "", "", "", "", "IVA 22%", "", { t:'n', f:'ROUND(H'+off+'*0.22, 2)' }]);
+  var offIva = off + 1;
+  ws_data.push(["", "", "", "", "", "Totale (IVA Incl.)", "", { t:'n', f:'ROUND(H'+off+'+H'+offIva+', 2)' }]);
+  var offTot = offIva + 1;
+  
+  var gd = getGlobalDiscountVal();
+  if(gd > 0) {
+      ws_data.push(["", "", "", "", "", "Arrotondamento / Cassa", "", -gd]);
+      var offArr = offTot + 1;
+      ws_data.push(["", "", "", "", "", "Totale Finale Da Pagare", "", { t:'n', f:'ROUND(H'+offTot+'+H'+offArr+', 2)' }]);
+  }
+  
+  var ws = XLSX.utils.aoa_to_sheet(ws_data);
+  XLSX.utils.book_append_sheet(wb, ws, ws_name);
+  
+  var fname = 'preventivo_' + new Date().toISOString().slice(0,10) + '.xlsx';
+  XLSX.writeFile(wb, fname);
+  showToast('Excel esportato!');
 });
 
 function showToast(msg){toastEl.textContent=msg;toastEl.classList.add('show');setTimeout(function(){toastEl.classList.remove('show')},2000)}

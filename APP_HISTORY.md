@@ -58,7 +58,19 @@ Questo documento traccia la storia dello sviluppo e l'evoluzione tecnica dell'ap
 * **Logica Checkout a Cascata:** Implementazione di un calcolo ricorsivo per la detrazione progressiva degli sconti (Sconto excel originario, riduzioni custom del venditore, e arrotondamento).
 * **Simulatore Keypad POS:** Introduzione di una maschera numerica intelligente (`inputmode="numeric"`) nel campo di arrotondamento totale, che permette all'operatore di digitare le cifre e auto-popolare i due slot decimali senza input della virgola (es. digitazione rapida da numpad) emulando i classici terminali di cassa.
 * **Aggiornamento Architettura Preventivi Cloud:** Il payload JSON del database Cloud Firestore è stato aggiornato per storicizzare gli esatti delta al netto, sia a livello di riga articolo (sconto extra del venditore in percentuale) che in calce al documento (sconto globale).
+* **Generazione Nativa Excel:** Sostituzione dell'esportazione CSV con la libreria SheetJS per la scrittura di veri e propri file `.xlsx`. Iniezione di formule Excel native per il calcolo progressivo degli sconti su più fattori (Sconto excel originario e sconti operatore dinamici), permettendo ricalcoli diretti all'interno dei fogli di calcolo scaricati, a prescindere dal Locale linguistico.
+* **Math Standardizer:** Introduzione di una funzione di rounding globale per forzare in maniera matematica i calcoli in virgola mobile a 2 decimali progressivi, eliminando le derive millesimali create dal JS rispetto all'approccio di arrotondamento usato da Excel.
 
 ---
 
-*L'app è così evoluta da un tool tattico isolato a un software omnicanale con operatività edge/cloud per l'intero reparto aziendale (v1.3.0).*
+## ☁️ Fase 5: Major Release v2.0 & Cloud Hub (14 Aprile 2026)
+**Focus:** Rilascio della Major Release 2.0.0. Trasformazione dell'applicazione da uno strumento locale a un terminale Cloud PWA a "Zero Setup".
+
+### Prerogative Tecniche Implementate:
+* **Firebase Storage Sync:** Implementazione vitale dello scaricamento asincrono. I file di database pesanti `listino.xlsx` e `clienti.xlsx` non devono più essere caricati localmente dal file-system dell'iPad. Sono posizionati centralmente da un admin su Cloud Firebase Storage.
+* **Smart Data Fetching (Bandwidth Saver):** All'avvio dell'applicazione i tablet scaricano solamente il Payload Metadati in pochi byte (`.getMetadata()`). Se il payload riporta modifiche lato cloud, esegue il `fetch` asincrono del buffer, rianalizza il dizionario e salva tutto in LocalStorage. Questo azzera letteralmente il costo dei download e garantisce la continuità lavorativa Offline-first.
+* **Automazione Setup:** L'interfaccia UI di Upload è stata deprecata ed evoluta in uno Smart Loader animato che indica all'operatore in tempo reale le fasi di sincronizzazione cloud.
+
+---
+
+*L'app è così evoluta da un tool tattico isolato a un software omnicanale con operatività edge/cloud per l'intero reparto aziendale (v2.0.0).*
