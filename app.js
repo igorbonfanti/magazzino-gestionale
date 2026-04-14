@@ -444,6 +444,8 @@ function openAddModal(item){
   var existing=null;
   for(var i=0;i<cart.length;i++){if(cart[i].item.cod===item.cod){existing=cart[i];break}}
   mQtyInput.value=existing?existing.qty:1;
+  var mExtraDiscountEl = $('mExtraDiscount');
+  if(mExtraDiscountEl) mExtraDiscountEl.value = existing ? (existing.extraDiscount || 0) : 0;
   $('mAddBtn').textContent=existing?'\u2713 Aggiorna quantit\u00e0':'+ Aggiungi al preventivo';
   updateSubtotal();
   addOverlay.classList.add('open');
@@ -455,20 +457,30 @@ addOverlay.addEventListener('click',function(e){if(e.target===addOverlay)closeAd
 $('addCloseBtn').addEventListener('click',closeAddModal);
 $('addCancelBtn').addEventListener('click',closeAddModal);
 mQtyInput.addEventListener('input',updateSubtotal);
+var mExtraDiscountEl = $('mExtraDiscount');
+if(mExtraDiscountEl) {
+  mExtraDiscountEl.addEventListener('input',updateSubtotal);
+  mExtraDiscountEl.addEventListener('change',updateSubtotal);
+}
 
 function updateSubtotal(){
   var q=parseFloat(mQtyInput.value)||0;
   var p=currentItem?(currentItem.net||0):0;
+  var mED = $('mExtraDiscount');
+  var ed = mED ? (parseFloat(mED.value)||0) : 0;
+  if(ed > 0) p = p * (1 - ed/100);
   $('mSubtotal').textContent='\u20ac '+fp(q*p);
 }
 
 $('mAddBtn').addEventListener('click',function(){
   if(!currentItem)return;
   var qty=parseFloat(mQtyInput.value)||0;
+  var mED = $('mExtraDiscount');
+  var ed=mED ? (parseFloat(mED.value)||0) : 0;
   if(qty<=0)return;
   var existing=null;var wasUpdate=false;
   for(var i=0;i<cart.length;i++){if(cart[i].item.cod===currentItem.cod){existing=cart[i];wasUpdate=true;break}}
-  if(existing){existing.qty=qty}else{cart.push({item:currentItem,qty:qty})}
+  if(existing){existing.qty=qty; existing.extraDiscount=ed;}else{cart.push({item:currentItem,qty:qty,extraDiscount:ed})}
   window.currentQuoteIdSaved = null;
   closeAddModal();renderCart();doSearch();
   showToast(wasUpdate?'\u2713 Quantit\u00e0 aggiornata':'\u2713 Aggiunto al preventivo');
@@ -488,8 +500,13 @@ function renderCart(){
   cartSubtitle.textContent=cart.length+' articol'+(cart.length===1?'o':'i')+' selezionat'+(cart.length===1?'o':'i');
   var html='';
   cart.forEach(function(c,idx){
-    var sub=c.qty*(c.item.net||0);
-    var discLine = c.item.sconto > 0 ? '<div class="cart-item-disc">Sc. -'+c.item.sconto+'% (listino '+fp(c.item.prezzo)+')</div>' : '';
+    var unitNet = c.item.net;
+    if(c.extraDiscount > 0) unitNet = unitNet * (1 - c.extraDiscount/100);
+    var sub=c.qty*(unitNet||0);
+    var discParts = [];
+    if(c.item.sconto > 0) discParts.push('-'+c.item.sconto+'%');
+    if(c.extraDiscount > 0) discParts.push('extra -'+c.extraDiscount+'%');
+    var discLine = discParts.length > 0 ? '<div class="cart-item-disc">Sc. '+discParts.join(' | ')+' (listino '+fp(c.item.prezzo)+')</div>' : '';
     html+='<div class="cart-item">'
       +'<div class="cart-item-top"><div class="cart-item-name">'+esc(c.item.desc)+'</div><button class="cart-item-remove" data-action="remove" data-idx="'+idx+'" title="Rimuovi">&times;</button></div>'
       +'<div class="cart-item-cod">'+esc(c.item.cod)+'</div>'
@@ -522,7 +539,11 @@ cartBody.addEventListener('change',function(e){
 
 function updateTotals(){
   var nItems=0,netto=0;
-  cart.forEach(function(c){nItems+=c.qty;netto+=c.qty*(c.item.net||0)});
+  cart.forEach(function(c){
+    var unitNet = c.item.net;
+    if(c.extraDiscount > 0) unitNet = unitNet * (1 - c.extraDiscount/100);
+    nItems+=c.qty;netto+=c.qty*(unitNet||0);
+  });
   var iva=netto*0.22;
   $('ftItems').textContent=nItems;
   $('ftNetto').textContent='\u20ac '+fp(netto);
@@ -546,29 +567,72 @@ $('btnClear').addEventListener('click',function(){
 });
 $('btnPrev').addEventListener('click',showPreventivo);
 
-// PREVENTIVO
-function showPreventivo(){
+function getGlobalDiscountVal() {
+    var gdEl = $('globalDiscountAbsolute');
+    if (!gdEl) return 0;
+    var digits = (gdEl.value || "").replace(/\D/g, '');
+    if (!digits) digits = "0";
+    return parseInt(digits, 10) / 100;
+}
+
+if($('globalDiscountAbsolute')) {
+  $('globalDiscountAbsolute').addEventListener('input', function(e){ 
+      var val = getGlobalDiscountVal();
+      this.value = val.toFixed(2).replace('.', ',');
+      renderPrevBody(); 
+  });
+}
+
+function renderPrevBody() {
   if(!cart.length)return;
   var netto=0;
   var rows='';
   cart.forEach(function(c){
-    var sub=c.qty*(c.item.net||0);netto+=sub;
-    var discTd = c.item.sconto > 0 ? '-'+c.item.sconto+'%' : '';
+    var unitNet = c.item.net;
+    if(c.extraDiscount > 0) unitNet = unitNet * (1 - c.extraDiscount/100);
+    var sub=c.qty*(unitNet||0);netto+=sub;
+    var discParts = [];
+    if(c.item.sconto > 0) discParts.push('-'+c.item.sconto+'%');
+    if(c.extraDiscount > 0) discParts.push('-'+c.extraDiscount+'%');
+    var discTd = discParts.length > 0 ? discParts.join('<br>') : '';
     rows+='<tr><td class="prev-cod">'+esc(c.item.cod)+'</td><td>'+esc(c.item.desc)
-      +'</td><td class="r">'+fp(c.item.prezzo)+'</td><td class="disc-cell">'+discTd
-      +'</td><td class="r">'+fp(c.item.net)+'</td><td class="r">'+c.qty
+      +'</td><td class="r">'+fp(c.item.prezzo)+'</td><td class="disc-cell" style="line-height:1.2;">'+discTd
+      +'</td><td class="r">'+fp(unitNet)+'</td><td class="r">'+c.qty
       +'</td><td class="r">'+fp(sub)+'</td></tr>';
   });
-  var iva=netto*0.22;
+  var baseIva=netto*0.22;
+  var totIvaInc=netto+baseIva;
+  
+  var globalDiscount = getGlobalDiscountVal();
+  var finalTotIvaInc = totIvaInc - globalDiscount;
+  if(finalTotIvaInc < 0) finalTotIvaInc = 0;
+  var finalNetto = finalTotIvaInc / 1.22;
+  var finalIva = finalTotIvaInc - finalNetto;
+
   var today=new Date().toLocaleDateString('it-IT');
-  $('prevBody').innerHTML='<div style="margin-bottom:20px"><div style="font-size:11px;color:var(--text3)">Il Magazzino Edile S.r.l. \u2014 Preventivo del '+today+'</div></div>'
+  var html = '<div style="margin-bottom:20px"><div style="font-size:11px;color:var(--text3)">Il Magazzino Edile S.r.l. \u2014 Preventivo del '+today+'</div></div>'
     +'<table class="prev-table"><thead><tr><th>Codice</th><th>Descrizione</th><th class="r">Listino \u20ac</th><th class="r">Sc.%</th><th class="r">Netto \u20ac</th><th class="r">Qt\u00e0</th><th class="r">Totale \u20ac</th></tr></thead>'
     +'<tbody>'+rows+'</tbody>'
-    +'<tfoot>'
-    +'<tr><td colspan="6" style="text-align:right">Totale Netto</td><td class="prev-total-val r">'+fp(netto)+'</td></tr>'
-    +'<tr><td colspan="6" style="text-align:right;font-size:12px;color:var(--text2)">IVA 22%</td><td class="r" style="font-family:JetBrains Mono,monospace;font-size:12px">'+fp(iva)+'</td></tr>'
-    +'<tr><td colspan="6" style="text-align:right;font-size:14px">Totale IVA incl.</td><td class="prev-total-val r" style="font-size:18px">'+fp(netto+iva)+'</td></tr>'
+    +'<tfoot>';
+  
+  if(globalDiscount > 0) {
+    html += '<tr><td colspan="6" style="text-align:right;font-size:12px;color:var(--text2)">Totale prima dello sconto</td><td class="prev-total-val r" style="font-size:12px;color:var(--text2)">'+fp(totIvaInc)+'</td></tr>'
+      + '<tr><td colspan="6" style="text-align:right;font-weight:bold;color:var(--danger)">Sconto Arrotondamento (IVA inclusa)</td><td class="r" style="color:var(--danger);font-weight:bold;">- '+fp(globalDiscount)+'</td></tr>';
+  }
+  
+  html += '<tr><td colspan="6" style="text-align:right">Totale Netto</td><td class="prev-total-val r">'+fp(finalNetto)+'</td></tr>'
+    +'<tr><td colspan="6" style="text-align:right;font-size:12px;color:var(--text2)">IVA 22%</td><td class="r" style="font-family:JetBrains Mono,monospace;font-size:12px">'+fp(finalIva)+'</td></tr>'
+    +'<tr><td colspan="6" style="text-align:right;font-size:14px">Totale IVA incl.</td><td class="prev-total-val r" style="font-size:18px">'+fp(finalTotIvaInc)+'</td></tr>'
     +'</tfoot></table>';
+  $('prevBody').innerHTML=html;
+}
+
+function showPreventivo(){
+  if(!cart.length)return;
+  if($('globalDiscountAbsolute')) {
+      $('globalDiscountAbsolute').value = "0,00";
+  }
+  renderPrevBody();
   prevOverlay.classList.add('open');
 }
 
@@ -741,13 +805,22 @@ async function saveQuoteToCloud(type) {
         
         var netto = 0;
         var itemsForDb = cart.map(function(c){
-           var sub = c.qty*(c.item.net||0);
+           var unitNet = c.item.net;
+           if(c.extraDiscount > 0) unitNet = unitNet * (1 - c.extraDiscount/100);
+           var sub = c.qty*(unitNet||0);
            netto += sub;
            return {
                cod: c.item.cod, desc: c.item.desc, qty: c.qty, 
-               net: c.item.net, subtotal: sub, prezzo: c.item.prezzo, sconto: c.item.sconto
+               net: unitNet, subtotal: sub, prezzo: c.item.prezzo, sconto: c.item.sconto, extraDiscount: c.extraDiscount || 0
            };
         });
+        
+        var baseIva = netto * 0.22;
+        var totIvaInc = netto + baseIva;
+        var globalDiscount = getGlobalDiscountVal();
+        var finalTotIvaInc = totIvaInc - globalDiscount;
+        if(finalTotIvaInc < 0) finalTotIvaInc = 0;
+        var finalNetto = finalTotIvaInc / 1.22;
         
         var quoteData = {
            quoteId: quoteId,
@@ -755,7 +828,8 @@ async function saveQuoteToCloud(type) {
            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
            customer: currentCustomer || null,
            items: itemsForDb,
-           netTotal: netto,
+           netTotal: finalNetto,
+           globalDiscount: globalDiscount,
            type: type,
            searchTokens: (quoteId + " " + (currentCustomer ? currentCustomer.ragione + " " + currentCustomer.piva : "")).toLowerCase()
         };
@@ -781,13 +855,34 @@ $('prevEmailBtn').addEventListener('click', async function() {
     bodyText += "Elenco:\n";
     var netto = 0;
     cart.forEach(function(c){
-        var sub = c.qty * (c.item.net || 0);
+        var unitNet = c.item.net;
+        if(c.extraDiscount > 0) unitNet = unitNet * (1 - c.extraDiscount/100);
+        var sub = c.qty * (unitNet || 0);
         netto += sub;
-        bodyText += "- " + c.qty + "x " + c.item.desc + " (E. " + fp(sub) + ")\n";
+        var discText = "";
+        var discParts = [];
+        if(c.item.sconto > 0) discParts.push('-'+c.item.sconto+'%');
+        if(c.extraDiscount > 0) discParts.push('-'+c.extraDiscount+'%');
+        if(discParts.length > 0) discText = " (Sc. " + discParts.join('|') + ")";
+        
+        bodyText += "- " + c.qty + "x " + c.item.desc + discText + " (E. " + fp(sub) + ")\n";
     });
-    bodyText += "\nTotale Netto: E. " + fp(netto);
-    bodyText += "\nIVA 22%: E. " + fp(netto * 0.22);
-    bodyText += "\nTotale: E. " + fp(netto * 1.22);
+    
+    var baseIva = netto * 0.22;
+    var totIvaInc = netto + baseIva;
+    var globalDiscount = getGlobalDiscountVal();
+    var finalTotIvaInc = totIvaInc - globalDiscount;
+    if(finalTotIvaInc < 0) finalTotIvaInc = 0;
+    var finalNetto = finalTotIvaInc / 1.22;
+    var finalIva = finalTotIvaInc - finalNetto;
+
+    if(globalDiscount > 0) {
+        bodyText += "\nSconto di Cassa (IVA inclusa): -E. " + fp(globalDiscount);
+    }
+    
+    bodyText += "\nTotale Netto: E. " + fp(finalNetto);
+    bodyText += "\nIVA 22%: E. " + fp(finalIva);
+    bodyText += "\nTotale: E. " + fp(finalTotIvaInc);
     
     bodyText += "\n\nIl Magazzino Edile S.r.l.";
     

@@ -42,7 +42,7 @@
       <div class="logo">ME</div>
       <div class="header-text">
         <h1>Listino Prezzi Netto</h1>
-        <p>Il Magazzino Edile S.r.l. <span class="app-version" style="opacity:0.6; font-size:10px; margin-left: 6px; font-family:'JetBrains Mono',monospace;">v1.2.0</span></p>
+        <p>Il Magazzino Edile S.r.l. <span class="app-version" style="opacity:0.6; font-size:10px; margin-left: 6px; font-family:'JetBrains Mono',monospace;">v1.3.0</span></p>
       </div>
       <button class="btn btn-secondary" id="btnStorico" style="margin-left: auto; margin-right: 10px; background: var(--surface2); border: 1px solid var(--border);">📜 Storico Preventivi</button>
       <button class="btn btn-secondary reload-btn" id="btnReloadListino">Aggiorna Listino (Excel)</button>
@@ -130,6 +130,21 @@
       <input type="number" class="modal-qty-input" id="mQty" value="1" min="1" step="1">
       <div class="modal-quick-qty" id="quickQtyBtns"></div>
     </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px; padding-top: 14px; border-top: 1px solid var(--border);">
+      <div class="modal-qty-label" style="margin-bottom:0; color:var(--text3);">Sconto Extra (%)</div>
+      <select id="mExtraDiscount" class="search-input" style="width:120px; padding: 6px 12px; font-size:14px; background:var(--surface2); border:1px solid var(--border); font-family:'JetBrains Mono', monospace; font-weight:600; text-align:center;">
+         <option value="0">0 %</option>
+         <option value="2">- 2 %</option>
+         <option value="3">- 3 %</option>
+         <option value="5">- 5 %</option>
+         <option value="7">- 7 %</option>
+         <option value="10">- 10 %</option>
+         <option value="15">- 15 %</option>
+         <option value="20">- 20 %</option>
+         <option value="25">- 25 %</option>
+         <option value="30">- 30 %</option>
+      </select>
+    </div>
     <div class="modal-subtotal">
       <span class="modal-subtotal-label">Subtotale</span>
       <span class="modal-subtotal-value" id="mSubtotal">&euro; 0,00</span>
@@ -164,8 +179,14 @@
             <button id="btnRemoveCustomer" style="background:none; border:none; color:var(--text3); cursor:pointer; font-size:20px;">&times;</button>
          </div>
       </div>
-    </div>
+      </div>
     <div class="print-body" id="prevBody"></div>
+    <div style="padding:12px 24px; border-top:1px solid var(--border); background:var(--surface2); display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+       <label style="font-size:12px; color:var(--text); font-weight:600;">Sconto Cassa / Arrotondamento (&euro;, IVA Inclusa)</label>
+       <div style="display:flex; align-items:center;">
+          <input type="text" inputmode="numeric" id="globalDiscountAbsolute" class="search-input" style="width: 100px; padding: 6px 10px; font-size: 14px; text-align:right; font-family:'JetBrains Mono', monospace; font-weight:600; background:var(--surface);" value="0,00">
+       </div>
+    </div>
     <div class="print-footer">
       <button class="btn btn-secondary" id="prevCloseBtnFoot">Chiudi</button>
       <button class="btn btn-secondary" id="prevExportBtn">&#128202; Esporta CSV</button>
