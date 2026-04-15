@@ -485,3 +485,14 @@ tr.in-cart .col-cod::after{content:" \2713";color:var(--green);font-size:10px}
   color: var(--green);
 }
 
+/* CUSTOMER MODAL GRID */
+.modal-qty-label { font-size: 11px; margin-bottom: 4px; display: block; }
+#btnNewCustomer:hover { background: var(--border) !important; color: var(--accent2) !important; }
+#customerOverlay { z-index: 1000 !important; }
+#customerModal { max-width: 540px; }
+
+@media screen and (max-width: 480px) {
+  #customerModal { width: 95%; padding: 16px; }
+  #customerModal div[style*="display:grid"] { grid-template-columns: 1fr !important; }
+}
+

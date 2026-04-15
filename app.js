@@ -15,6 +15,7 @@ var CLIENTI = [];
 var starredItems = JSON.parse(localStorage.getItem('posStarred') || '[]');
 var currentCustomer = null;
 window.currentQuoteIdSaved = null;
+var CUSTOMER_META = {};
 
 // Firebase Init
 var db = null;
@@ -33,6 +34,8 @@ try {
 try {
   var savedClienti = localStorage.getItem('posClientiData');
   if(savedClienti) { CLIENTI = JSON.parse(savedClienti); }
+  var savedMeta = localStorage.getItem('posCustomerMeta');
+  if(savedMeta) { CUSTOMER_META = JSON.parse(savedMeta); }
 } catch(e){}
 
 // UI Elements
@@ -42,7 +45,8 @@ var searchInput=$('searchInput'), clearBtn=$('clearBtn'), tbody=$('tbody'),
     cartPanel=$('cartPanel'), cartBody=$('cartBody'), cartBadge=$('cartBadge'), cartFooter=$('cartFooter'),
     cartSubtitle=$('cartSubtitle'), addOverlay=$('addOverlay'), mQtyInput=$('mQty'),
     prevOverlay=$('prevOverlay'), toastEl=$('toast'),
-    mobileCartBtn=$('mobileCartBtn'), cartCloseBtn=$('cartCloseBtn'), fabBadge=$('fabBadge');
+    mobileCartBtn=$('mobileCartBtn'), cartCloseBtn=$('cartCloseBtn'), fabBadge=$('fabBadge'),
+    customerOverlay=$('customerOverlay'), customerConfirmBtn=$('customerConfirmBtn');
 
 function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function fp(p){return p!=null?p.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}):'\u2014'}
@@ -190,6 +194,12 @@ async function checkCloudUpdates() {
             localStorage.setItem('posClientiDate', cMeta.updated);
         }
         
+        // 3. Sync Custom Clienti from Firestore
+        await syncCustomClienti();
+
+        // 4. Sync Customer Meta
+        await syncCustomerMeta();
+        
         initAppFallback();
         
     } catch(err) {
@@ -204,7 +214,16 @@ function initAppFallback() {
     const cliData = localStorage.getItem('posClientiData');
     if(listData) {
         ITEMS = JSON.parse(listData);
-        if(cliData) CLIENTI = JSON.parse(cliData);
+        if(cliData && CLIENTI.length === 0) { 
+            CLIENTI = JSON.parse(cliData); 
+        } else if(cliData) {
+            // Se abbiamo già dei clienti (es. da Firestore), uniamoli evitando duplicati
+            const local = JSON.parse(cliData);
+            local.forEach(c => {
+               const exists = CLIENTI.some(x => x.ragione === c.ragione && x.piva === c.piva);
+               if(!exists) CLIENTI.push(c);
+            });
+        }
         initApp();
     } else {
         uploadStatus.innerHTML = '<span style="color:var(--danger)">Nessun listino offline disponibile e impossibile scaricarlo. Contatta l\'amministratore.</span>';
@@ -668,39 +687,239 @@ if(custSearch) {
     custRes.style.display = 'none';
     custSearch.parentElement.style.display = 'none';
     
-    $('scRagione').textContent = currentCustomer.ragione;
-    $('scIndirizzo').textContent = currentCustomer.indirizzo;
-    $('scCitta').textContent = currentCustomer.citta;
-    $('scPiva').textContent = currentCustomer.piva;
+    
+    updateSelectedCustomerUI();
     selCustBox.style.display = 'block';
+    $('quoteContactDetails').style.display = 'block';
     window.currentQuoteIdSaved = null;
   });
 
   $('btnRemoveCustomer').addEventListener('click', function(){
     currentCustomer = null;
     selCustBox.style.display = 'none';
+    $('quoteContactDetails').style.display = 'none';
+    $('quoteTel').value = '';
+    $('quoteCantiere').value = '';
     custSearch.parentElement.style.display = 'block';
     custSearch.focus();
     window.currentQuoteIdSaved = null;
   });
 }
 
+// --- GESTIONE CLIENTE MANUALE ---
+if($('btnNewCustomer')) {
+  $('btnNewCustomer').addEventListener('click', openCustomerModal);
+}
+if($('customerCloseBtn')) $('customerCloseBtn').addEventListener('click', closeCustomerModal);
+if($('customerCancelBtn')) $('customerCancelBtn').addEventListener('click', closeCustomerModal);
+if($('customerConfirmBtn')) $('customerConfirmBtn').addEventListener('click', confirmCustomer);
+
+function openCustomerModal() {
+  if(currentCustomer) {
+    $('custRagione').value = currentCustomer.ragione || '';
+    $('custPiva').value = currentCustomer.piva || '';
+    $('custEmail').value = currentCustomer.email || '';
+    $('custIndirizzo').value = currentCustomer.indirizzo || '';
+    $('custCitta').value = currentCustomer.citta || '';
+    $('custSaveDb').checked = false;
+  } else if(custSearch.value.trim().length > 0) {
+    $('custRagione').value = titleCase(custSearch.value.trim());
+    $('custPiva').value = '';
+    $('custEmail').value = '';
+    $('custIndirizzo').value = '';
+    $('custCitta').value = '';
+    $('custSaveDb').checked = true;
+  } else {
+    // Clear all
+    ['custRagione','custPiva','custEmail','custIndirizzo','custCitta'].forEach(id => $(id).value = '');
+    $('custSaveDb').checked = true;
+  }
+  $('customerOverlay').classList.add('open');
+}
+
+function closeCustomerModal() {
+  $('customerOverlay').classList.remove('open');
+}
+
+async function confirmCustomer() {
+  const ragione = $('custRagione').value.trim();
+  if(!ragione) { alert("La Ragione Sociale è obbligatoria."); return; }
+  
+  const nuovoCliente = {
+    ragione: ragione,
+    piva: $('custPiva').value.trim(),
+    email: $('custEmail').value.trim(),
+    indirizzo: $('custIndirizzo').value.trim(),
+    citta: $('custCitta').value.trim(),
+    manual: true
+  };
+
+  if($('custSaveDb').checked) {
+    if(!db) { alert("Errore: Firebase non connesso."); }
+    else {
+      showToast("Salvataggio cliente nel Cloud...");
+      try {
+        await db.collection('clienti').add({
+            ...nuovoCliente,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        CLIENTI.push(nuovoCliente);
+      } catch(e) { console.error(e); }
+    }
+  }
+
+  currentCustomer = nuovoCliente;
+  updateSelectedCustomerUI();
+  
+  closeCustomerModal();
+  custSearch.value = '';
+  custRes.style.display = 'none';
+  custSearch.parentElement.style.display = 'none';
+  selCustBox.style.display = 'block';
+  $('quoteContactDetails').style.display = 'block';
+  window.currentQuoteIdSaved = null;
+  showToast("Cliente impostato");
+}
+
+function updateSelectedCustomerUI() {
+  if(!currentCustomer) return;
+  $('scRagione').textContent = currentCustomer.ragione;
+  $('scIndirizzo').textContent = currentCustomer.indirizzo || '';
+  $('scCitta').textContent = currentCustomer.citta || '';
+  $('scPiva').textContent = currentCustomer.piva || '';
+  
+  // Update datalists
+  const meta = CUSTOMER_META[currentCustomer.ragione] || { telefoni: [], cantieri: [] };
+  
+  const datalistTelefoni = $('listTelefoni');
+  if (datalistTelefoni) {
+      datalistTelefoni.innerHTML = '';
+      meta.telefoni.forEach(t => {
+          let opt = document.createElement('option');
+          opt.value = t;
+          datalistTelefoni.appendChild(opt);
+      });
+  }
+  
+  const datalistCantieri = $('listCantieri');
+  if (datalistCantieri) {
+      datalistCantieri.innerHTML = '';
+      meta.cantieri.forEach(c => {
+          let opt = document.createElement('option');
+          opt.value = c;
+          datalistCantieri.appendChild(opt);
+      });
+  }
+}
+
+function getQuoteCustomer() {
+    if(!currentCustomer) return null;
+    var tel = $('quoteTel') ? $('quoteTel').value.trim() : '';
+    var cantiere = $('quoteCantiere') ? $('quoteCantiere').value.trim() : '';
+    return { ...currentCustomer, tel: tel, cantiere: cantiere };
+}
+
+async function syncCustomClienti() {
+    if(!db) return;
+    try {
+        const snap = await db.collection('clienti').orderBy('timestamp', 'desc').get();
+        snap.forEach(doc => {
+            const data = doc.data();
+            const exists = CLIENTI.some(c => c.ragione === data.ragione && c.piva === data.piva);
+            if(!exists) CLIENTI.push(data);
+        });
+    } catch(e) {}
+}
+
+async function syncCustomerMeta() {
+    if(!db) return;
+    try {
+        const snap = await db.collection('customer_meta').get();
+        snap.forEach(doc => {
+            // doc.id is a base64 encoded string of ragione, or just a custom id with reason field
+            CUSTOMER_META[doc.data().ragione] = {
+                telefoni: doc.data().telefoni || [],
+                cantieri: doc.data().cantieri || [],
+                sitePhones: doc.data().sitePhones || {}
+            };
+        });
+        localStorage.setItem('posCustomerMeta', JSON.stringify(CUSTOMER_META));
+    } catch(e) {}
+}
+
+async function updateCustomerMeta(ragione, tel, cantiere) {
+    if(!ragione || (!tel && !cantiere)) return;
+    
+    var meta = CUSTOMER_META[ragione] || { telefoni: [], cantieri: [], sitePhones: {} };
+    if(!meta.sitePhones) meta.sitePhones = {};
+    var changed = false;
+    
+    if(tel && !meta.telefoni.includes(tel)) {
+        meta.telefoni.push(tel);
+        changed = true;
+    }
+    if(cantiere && !meta.cantieri.includes(cantiere)) {
+        meta.cantieri.push(cantiere);
+        changed = true;
+    }
+    if(cantiere && tel && meta.sitePhones[cantiere] !== tel) {
+        meta.sitePhones[cantiere] = tel;
+        changed = true;
+    }
+    
+    if(changed) {
+        CUSTOMER_META[ragione] = meta;
+        localStorage.setItem('posCustomerMeta', JSON.stringify(CUSTOMER_META));
+        
+        if(db) {
+            try {
+                // Find document by ragione
+                const snapshot = await db.collection('customer_meta').where('ragione', '==', ragione).limit(1).get();
+                if(snapshot.empty) {
+                    await db.collection('customer_meta').add({
+                        ragione: ragione,
+                        telefoni: meta.telefoni,
+                        cantieri: meta.cantieri,
+                        sitePhones: meta.sitePhones
+                    });
+                } else {
+                    const docId = snapshot.docs[0].id;
+                    await db.collection('customer_meta').doc(docId).update({
+                        telefoni: meta.telefoni,
+                        cantieri: meta.cantieri,
+                        sitePhones: meta.sitePhones
+                    });
+                }
+            } catch(e) { console.error("Error updating customer_meta", e); }
+        }
+    }
+}
+
 $('prevPrintBtn').addEventListener('click', async function(){
   var qId = await saveQuoteToCloud('PDF');
+  var qc = getQuoteCustomer();
   
   if(typeof html2pdf !== 'undefined') {
     var element = document.createElement('div');
     var today = new Date().toLocaleDateString('it-IT');
     var qStr = qId ? '<br><span style="font-size:14px;color:#16a34a;">N° ' + qId + '</span>' : '';
     var custHtml = '';
-    if (currentCustomer) {
-       custHtml = '<div style="text-align:right; font-size:13px; margin-bottom:24px;">'
-                + '<div><strong>Spett.le</strong></div>'
-                + '<div style="font-size:16px; font-weight:bold; color:#000;">'+currentCustomer.ragione+'</div>'
-                + '<div>'+currentCustomer.indirizzo+'</div>'
-                + '<div>'+currentCustomer.citta+'</div>'
-                + (currentCustomer.piva ? '<div>P.IVA: '+currentCustomer.piva+'</div>' : '')
-                + '</div>';
+    if (qc) {
+      var destBox = '';
+      if(qc.cantiere || qc.tel) {
+          destBox = '<div style="margin-top:10px; padding:6px; background:#f3f4f6; border-radius:4px; font-size:11px; text-align:left; border-left:3px solid var(--accent);">';
+          if(qc.cantiere) destBox += '<div style="margin-bottom:2px"><strong>Destinazione Cantiere:</strong> '+qc.cantiere+'</div>';
+          if(qc.tel) destBox += '<div><strong>Tel. Riferimento:</strong> '+qc.tel+'</div>';
+          destBox += '</div>';
+      }
+      custHtml = '<div style="text-align:right; font-size:13px; margin-bottom:24px;">'
+               + '<div><strong>Spett.le</strong></div>'
+               + '<div style="font-size:16px; font-weight:bold; color:#000;">'+qc.ragione+'</div>'
+               + '<div>'+qc.indirizzo+'</div>'
+               + '<div>'+qc.citta+'</div>'
+               + (qc.piva ? '<div>P.IVA: '+qc.piva+'</div>' : '')
+               + destBox
+               + '</div>';
     }
 
     element.innerHTML = '<div style="padding:40px; color:#222; font-family:Arial,sans-serif;">'
@@ -754,7 +973,7 @@ $('prevPrintBtn').addEventListener('click', async function(){
       +'<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:30px;">'
       +'<div><h1>Il Magazzino Edile S.r.l.</h1>'
       +'<div class="sub">Preventivo del '+new Date().toLocaleDateString('it-IT')+'<br><span style="color:#16a34a;font-weight:bold;font-size:14px">'+qStr+'</span></div></div>'
-      +(currentCustomer ? '<div style="text-align:right; font-size:13px;"><div><strong>Spett.le</strong></div><div style="font-size:16px; font-weight:bold;">'+currentCustomer.ragione+'</div><div>'+currentCustomer.indirizzo+'</div><div>'+currentCustomer.citta+'</div>'+(currentCustomer.piva?'<div>P.IVA: '+currentCustomer.piva+'</div>':'')+'</div>' : '')
+      +(qc ? '<div style="text-align:right; font-size:13px;"><div><strong>Spett.le</strong></div><div style="font-size:16px; font-weight:bold;">'+qc.ragione+'</div><div>'+qc.indirizzo+'</div><div>'+qc.citta+'</div>'+(qc.piva?'<div>P.IVA: '+qc.piva+'</div>':'')+((qc.cantiere||qc.tel)?'<div style="margin-top:8px; font-size:11px; color:#444; border:1px solid #ddd; padding:4px; text-align:left;">'+(qc.cantiere?'<strong>Destinazione:</strong> '+qc.cantiere+'<br>':'')+(qc.tel?'<strong>Tel:</strong> '+qc.tel:'')+'</div>':'')+'</div>' : '')
       +'</div>'
       +content+'</body></html>');
     w.document.close();
@@ -801,16 +1020,22 @@ async function saveQuoteToCloud(type) {
         if(finalTotIvaInc < 0) finalTotIvaInc = 0;
         var finalNetto = ro2(finalTotIvaInc / 1.22);
         
+        var qc = getQuoteCustomer();
+        if(qc) {
+            // Async background meta update
+            updateCustomerMeta(qc.ragione, qc.tel, qc.cantiere);
+        }
+        
         var quoteData = {
            quoteId: quoteId,
            dateIso: dateObj.toISOString(),
            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-           customer: currentCustomer || null,
+           customer: qc,
            items: itemsForDb,
            netTotal: finalNetto,
            globalDiscount: globalDiscount,
            type: type,
-           searchTokens: (quoteId + " " + (currentCustomer ? currentCustomer.ragione + " " + currentCustomer.piva : "")).toLowerCase()
+           searchTokens: (quoteId + " " + (qc ? qc.ragione + " " + qc.piva : "")).toLowerCase()
         };
         
         await db.collection('quotes').doc(quoteId).set(quoteData);
@@ -828,10 +1053,18 @@ $('prevEmailBtn').addEventListener('click', async function() {
     
     var qId = await saveQuoteToCloud('EMAIL');
     var qStr = qId ? " (N° " + qId + ")" : "";
+    var qc = getQuoteCustomer();
     
     var bodyText = "In allegato i dettagli del Preventivo" + qStr + ".\n\n";
-    if(currentCustomer) bodyText += "Spett.le " + currentCustomer.ragione + "\n\n";
-    bodyText += "Elenco:\n";
+    if(qc) {
+        bodyText += "Spett.le " + qc.ragione + "\n";
+        if(qc.cantiere || qc.tel) {
+            bodyText += "\nRiferimenti Consegna:\n";
+            if(qc.cantiere) bodyText += "Cantiere: " + qc.cantiere + "\n";
+            if(qc.tel) bodyText += "Telefono: " + qc.tel + "\n";
+        }
+    }
+    bodyText += "\nElenco:\n";
     var netto = 0;
     cart.forEach(function(c){
         var unitNet = c.item.net;
@@ -870,7 +1103,7 @@ $('prevEmailBtn').addEventListener('click', async function() {
     var subject = encodeURIComponent("Preventivo - Il Magazzino Edile" + qStr);
     var body = encodeURIComponent(bodyText);
     
-    var toEmail = (currentCustomer && currentCustomer.email) ? currentCustomer.email : "";
+    var toEmail = (qc && qc.email) ? qc.email : "";
     
     window.location.href = "mailto:" + toEmail + "?subject=" + subject + "&body=" + body;
 });
@@ -884,14 +1117,31 @@ $('prevExportBtn').addEventListener('click',function(){
   
   var ws_name = "Preventivo";
   var wb = XLSX.utils.book_new();
+  var qc = getQuoteCustomer();
   
   var ws_data = [
-    ['Codice', 'Descrizione', 'Prezzo Listino', 'Sconto 1 %', 'Sconto 2 %', 'Prezzo Netto', 'Quantita', 'Totale Riga']
+    ['Il Magazzino Edile S.r.l. - Preventivo'],
+    ['Data:', new Date().toLocaleDateString('it-IT')],
+    []
   ];
+
+  if(qc) {
+      ws_data.push(['CLIENTE:', qc.ragione]);
+      if(qc.piva) ws_data.push(['P.IVA:', qc.piva]);
+      if(qc.indirizzo) ws_data.push(['INDIRIZZO:', qc.indirizzo + ' ' + (qc.citta||'')]);
+      if(qc.cantiere) ws_data.push(['DESTINAZIONE:', qc.cantiere]);
+      if(qc.tel) ws_data.push(['TEL RIFERIMENTO:', qc.tel]);
+      ws_data.push([]);
+  }
+
+  ws_data.push(['Codice', 'Descrizione', 'Prezzo Listino', 'Sconto 1 %', 'Sconto 2 %', 'Prezzo Netto', 'Quantita', 'Totale Riga']);
   
+  var headerOffset = ws_data.length;
+
   cart.forEach(function(c, i){
-    var r = i + 2;
+    var r = i + headerOffset + 1;
     var listino = c.item.prezzo || 0;
+// ... rest of the logic should be adjusted for offset
     var sc1 = c.item.sconto || 0;
     var sc2 = c.extraDiscount || 0;
     var qty = c.qty || 1;
@@ -908,20 +1158,21 @@ $('prevExportBtn').addEventListener('click',function(){
     ]);
   });
   
-  var n = cart.length + 1;
-  var off = n + 1;
+  var startRow = headerOffset + 1;
+  var endRow = headerOffset + cart.length;
+  var totalNettoRow = endRow + 1;
   
-  ws_data.push(["", "", "", "", "", "Totale Netto", "", { t:'n', f:'ROUND(SUM(H2:H'+n+'), 2)' }]);
-  ws_data.push(["", "", "", "", "", "IVA 22%", "", { t:'n', f:'ROUND(H'+off+'*0.22, 2)' }]);
-  var offIva = off + 1;
-  ws_data.push(["", "", "", "", "", "Totale (IVA Incl.)", "", { t:'n', f:'ROUND(H'+off+'+H'+offIva+', 2)' }]);
-  var offTot = offIva + 1;
+  ws_data.push(["", "", "", "", "", "Totale Netto", "", { t:'n', f:'ROUND(SUM(H'+startRow+':H'+endRow+'), 2)' }]);
+  ws_data.push(["", "", "", "", "", "IVA 22%", "", { t:'n', f:'ROUND(H'+totalNettoRow+'*0.22, 2)' }]);
+  var ivaRow = totalNettoRow + 1;
+  ws_data.push(["", "", "", "", "", "Totale (IVA Incl.)", "", { t:'n', f:'ROUND(H'+totalNettoRow+'+H'+ivaRow+', 2)' }]);
+  var totalIvaIncRow = ivaRow + 1;
   
   var gd = getGlobalDiscountVal();
   if(gd > 0) {
       ws_data.push(["", "", "", "", "", "Arrotondamento / Cassa", "", -gd]);
-      var offArr = offTot + 1;
-      ws_data.push(["", "", "", "", "", "Totale Finale Da Pagare", "", { t:'n', f:'ROUND(H'+offTot+'+H'+offArr+', 2)' }]);
+      var arrRow = totalIvaIncRow + 1;
+      ws_data.push(["", "", "", "", "", "Totale Finale Da Pagare", "", { t:'n', f:'ROUND(H'+totalIvaIncRow+'+H'+arrRow+', 2)' }]);
   }
   
   var ws = XLSX.utils.aoa_to_sheet(ws_data);
@@ -1097,14 +1348,19 @@ window.restoreQuote = function(quoteId) {
     
     currentCustomer = q.customer;
     if(currentCustomer && $('customerSearch')) {
-        $('scRagione').textContent = currentCustomer.ragione || '';
-        $('scIndirizzo').textContent = currentCustomer.indirizzo || '';
-        $('scCitta').textContent = currentCustomer.citta || '';
-        $('scPiva').textContent = currentCustomer.piva || '';
+        updateSelectedCustomerUI();
+        
+        if($('quoteTel')) $('quoteTel').value = currentCustomer.tel || '';
+        if($('quoteCantiere')) $('quoteCantiere').value = currentCustomer.cantiere || '';
+        
         $('selectedCustomerBox').style.display = 'block';
+        if($('quoteContactDetails')) $('quoteContactDetails').style.display = 'block';
         $('customerSearch').parentElement.style.display = 'none';
     } else if($('customerSearch')) {
         $('selectedCustomerBox').style.display = 'none';
+        if($('quoteContactDetails')) $('quoteContactDetails').style.display = 'none';
+        if($('quoteTel')) $('quoteTel').value = '';
+        if($('quoteCantiere')) $('quoteCantiere').value = '';
         $('customerSearch').parentElement.style.display = 'block';
     }
     
@@ -1118,3 +1374,15 @@ window.restoreQuote = function(quoteId) {
     showPreventivo();
     showToast("Preventivo " + q.quoteId + " riaperto!");
 };
+
+if($('quoteCantiere')) {
+    $('quoteCantiere').addEventListener('change', function() {
+        if(!currentCustomer) return;
+        var meta = CUSTOMER_META[currentCustomer.ragione];
+        if(meta && meta.sitePhones && meta.sitePhones[this.value]) {
+            if($('quoteTel').value.trim() === '') {
+                $('quoteTel').value = meta.sitePhones[this.value];
+            }
+        }
+    });
+}

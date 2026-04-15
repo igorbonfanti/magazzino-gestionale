@@ -1,4 +1,4 @@
-const CACHE_NAME = 'magazzino-pos-v2.0.0';
+const CACHE_NAME = 'magazzino-pos-v2.1.0';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

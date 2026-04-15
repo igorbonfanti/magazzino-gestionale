@@ -34,7 +34,7 @@
       <div class="logo">ME</div>
       <div class="header-text">
         <h1>Listino Prezzi Netto</h1>
-        <p>Il Magazzino Edile S.r.l. <span class="app-version" style="opacity:0.6; font-size:10px; margin-left: 6px; font-family:'JetBrains Mono',monospace;">v2.0.0</span></p>
+        <p>Il Magazzino Edile S.r.l. <span class="app-version" style="opacity:0.6; font-size:10px; margin-left: 6px; font-family:'JetBrains Mono',monospace;">v2.1.0</span></p>
       </div>
       <button class="btn btn-secondary" id="btnStorico" style="margin-left: auto; margin-right: 10px; background: var(--surface2); border: 1px solid var(--border);">📜 Storico Preventivi</button>
       <button class="btn btn-secondary reload-btn" id="btnReloadListino">⬇️ Forza Sync Cloud</button>
@@ -159,6 +159,7 @@
       <label style="font-size:12px; color:var(--text2); display:block; margin-bottom:8px;">Intestazione Cliente (Opzionale)</label>
       <div style="position:relative;">
         <input type="text" id="customerSearch" class="search-input" style="padding:10px 14px; font-size:13px;" placeholder="Inizia a digitare la Ragione Sociale..." autocomplete="off">
+        <button id="btnNewCustomer" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:var(--surface3); border:1px solid var(--border); color:var(--accent); padding:4px 8px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">+ NUOVO</button>
         <div id="customerResults" style="position:absolute; top:100%; left:0; right:0; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm); z-index:10; max-height:220px; overflow-y:auto; display:none; box-shadow:0 12px 24px rgba(0,0,0,0.5);"></div>
       </div>
       <div id="selectedCustomerBox" style="display:none; padding:12px; background:var(--accent-bg); border:1px solid var(--accent); border-radius:var(--radius-sm); margin-top:10px;">
@@ -171,6 +172,23 @@
             <button id="btnRemoveCustomer" style="background:none; border:none; color:var(--text3); cursor:pointer; font-size:20px;">&times;</button>
          </div>
       </div>
+      
+      <!-- Delivery / Contact Info specific to this Quote -->
+      <div id="quoteContactDetails" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed var(--border);">
+         <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <div style="flex: 1 1 200px;">
+               <label style="font-size:12px; color:var(--text2); display:block; margin-bottom:4px;">Indirizzo Cantiere / Note Consegna</label>
+               <input type="text" id="quoteCantiere" list="listCantieri" class="search-input" style="padding:10px 14px; font-size:13px;" placeholder="Via/Città del cantiere (opzionale)">
+               <datalist id="listCantieri"></datalist>
+            </div>
+            <div style="flex: 0 0 160px;">
+               <label style="font-size:12px; color:var(--text2); display:block; margin-bottom:4px;">Telefono (Consegna)</label>
+               <input type="text" id="quoteTel" list="listTelefoni" class="search-input" style="padding:10px 14px; font-size:13px;" placeholder="Es. 333 1234567">
+               <datalist id="listTelefoni"></datalist>
+            </div>
+         </div>
+      </div>
+      
       </div>
     <div class="print-body" id="prevBody"></div>
     <div style="padding:12px 24px; border-top:1px solid var(--border); background:var(--surface2); display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
@@ -187,6 +205,7 @@
     </div>
   </div>
 </div>
+
 
 <!-- STORICO PREVENTIVI MODAL -->
 <div class="overlay" id="storicoOverlay">
@@ -247,6 +266,49 @@
       <div id="storicoLoading" style="display: none; text-align: center; padding: 40px; color: var(--text3);">
         Caricamento in corso dal Cloud...
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- CLIENTE MANUALE MODAL -->
+<div class="overlay" id="customerOverlay" style="z-index: 1050;">
+  <div class="modal" id="customerModal">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h2 style="font-size:18px;">&#128100; Anagrafica Cliente</h2>
+      <button class="modal-close" id="customerCloseBtn">&times;</button>
+    </div>
+    
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:16px;">
+      <div style="grid-column: span 2;">
+        <label class="modal-qty-label">Ragione Sociale *</label>
+        <input type="text" id="custRagione" class="search-input" style="padding:10px; font-size:13px;" placeholder="Nome Azienda o Privato">
+      </div>
+      <div>
+        <label class="modal-qty-label">Partita IVA / CF</label>
+        <input type="text" id="custPiva" class="search-input" style="padding:10px; font-size:13px;" placeholder="01234567890">
+      </div>
+      <div style="grid-column: span 2;">
+        <label class="modal-qty-label">Email</label>
+        <input type="email" id="custEmail" class="search-input" style="padding:10px; font-size:13px;" placeholder="esempio@mail.it">
+      </div>
+      <div style="grid-column: span 2;">
+        <label class="modal-qty-label">Indirizzo Sede Legale</label>
+        <input type="text" id="custIndirizzo" class="search-input" style="padding:10px; font-size:13px;" placeholder="Via Roma, 1">
+      </div>
+      <div style="grid-column: span 2;">
+        <label class="modal-qty-label">Citt&agrave; / Prov</label>
+        <input type="text" id="custCitta" class="search-input" style="padding:10px; font-size:13px;" placeholder="Milano (MI)">
+      </div>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:20px; padding:0 4px;">
+      <input type="checkbox" id="custSaveDb" style="width:18px; height:18px; cursor:pointer; accent-color:var(--accent);">
+      <label for="custSaveDb" style="font-size:13px; color:var(--text2); cursor:pointer;">Salva in anagrafica clienti per il futuro</label>
+    </div>
+
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-cancel" id="customerCancelBtn">Annulla</button>
+      <button class="modal-btn modal-btn-add" id="customerConfirmBtn">Conferma Cliente</button>
     </div>
   </div>
 </div>
