@@ -1,12 +1,13 @@
 $ErrorActionPreference = 'Stop'
 
 # 1. Read files
-$excelBytes = [System.IO.File]::ReadAllBytes('c:\Users\bonfa\code\ILMAGAZZINOEDILE_NET_090426.xlsx')
+$excelPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'ILMAGAZZINOEDILE_NET_090426.xlsx'
+$excelBytes = [System.IO.File]::ReadAllBytes($excelPath)
 $excelB64 = [System.Convert]::ToBase64String($excelBytes)
 
-$html = Get-Content 'c:\Users\bonfa\code\pos-app\index.html' -Raw -Encoding UTF8
-$css = Get-Content 'c:\Users\bonfa\code\pos-app\styles.css' -Raw -Encoding UTF8
-$js = Get-Content 'c:\Users\bonfa\code\pos-app\app.js' -Raw -Encoding UTF8
+$html = Get-Content (Join-Path $PSScriptRoot 'index.html') -Raw -Encoding UTF8
+$css = Get-Content (Join-Path $PSScriptRoot 'styles.css') -Raw -Encoding UTF8
+$js = Get-Content (Join-Path $PSScriptRoot 'app.js') -Raw -Encoding UTF8
 
 # 2. Modify index.html
 # Remove the upload button logic and upload card
@@ -128,5 +129,6 @@ $html = $html -replace '<link rel="stylesheet" href="styles.css">', "<style>`n$c
 $html = $html -replace '<script src="app.js"></script>', "<script>`n$js`n</script>"
 
 # 5. Output
-Set-Content -Path 'c:\Users\bonfa\code\pos-app\Magazzino_App_Mobile.html' -Value $html -Encoding UTF8
-Write-Output "Successfully built Magazzino_App_Mobile.html"
+$outputPath = Join-Path $PSScriptRoot 'Magazzino_App_Mobile.html'
+Set-Content -Path $outputPath -Value $html -Encoding UTF8
+Write-Output "Successfully built Magazzino_App_Mobile.html at $outputPath"
