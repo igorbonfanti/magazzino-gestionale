@@ -931,6 +931,7 @@ $('prevPrintBtn').addEventListener('click', async function(){
       + custHtml
       + '</div>'
       + $('prevBody').innerHTML
+      + '<div style="margin-top:20px; font-size:12px; padding-top:10px; border-top:1px solid #eee; color:#444;"><strong>Coordinate Bancarie (IBAN):</strong> IT85J0503401742000000032814</div>'
       + '</div>';
     var style = document.createElement('style');
     style.innerHTML = 'table{width:100%;border-collapse:collapse;margin-top:16px}'
@@ -975,7 +976,9 @@ $('prevPrintBtn').addEventListener('click', async function(){
       +'<div class="sub">Preventivo del '+new Date().toLocaleDateString('it-IT')+'<br><span style="color:#16a34a;font-weight:bold;font-size:14px">'+qStr+'</span></div></div>'
       +(qc ? '<div style="text-align:right; font-size:13px;"><div><strong>Spett.le</strong></div><div style="font-size:16px; font-weight:bold;">'+qc.ragione+'</div><div>'+qc.indirizzo+'</div><div>'+qc.citta+'</div>'+(qc.piva?'<div>P.IVA: '+qc.piva+'</div>':'')+((qc.cantiere||qc.tel)?'<div style="margin-top:8px; font-size:11px; color:#444; border:1px solid #ddd; padding:4px; text-align:left;">'+(qc.cantiere?'<strong>Destinazione:</strong> '+qc.cantiere+'<br>':'')+(qc.tel?'<strong>Tel:</strong> '+qc.tel:'')+'</div>':'')+'</div>' : '')
       +'</div>'
-      +content+'</body></html>');
+      +content
+      +'<div style="margin-top:20px; font-size:12px; padding-top:10px; border-top:1px solid #eee; color:#444;"><strong>Coordinate Bancarie (IBAN):</strong> IT85J0503401742000000032814</div>'
+      +'</body></html>');
     w.document.close();
     setTimeout(function(){w.print()},300);
   }
@@ -1098,6 +1101,7 @@ $('prevEmailBtn').addEventListener('click', async function() {
     bodyText += "\nIVA 22%: E. " + fp(finalIva);
     bodyText += "\nTotale: E. " + fp(finalTotIvaInc);
     
+    bodyText += "\n\nCoordinate Bancarie (IBAN):\nIT85J0503401742000000032814";
     bodyText += "\n\nIl Magazzino Edile S.r.l.";
     
     var subject = encodeURIComponent("Preventivo - Il Magazzino Edile" + qStr);
@@ -1154,6 +1158,7 @@ $('prevWhatsappBtn').addEventListener('click', async function() {
     bodyText += "\nIVA 22%: € " + fp(finalIva);
     bodyText += "\n*Totale Finale: € " + fp(finalTotIvaInc) + "*";
     
+    bodyText += "\n\n*Coordinate Bancarie (IBAN):*\n`IT85J0503401742000000032814`";
     bodyText += "\n\n_Il Magazzino Edile S.r.l._";
     
     var toPhone = "";
