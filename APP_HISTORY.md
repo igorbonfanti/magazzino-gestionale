@@ -73,4 +73,24 @@ Questo documento traccia la storia dello sviluppo e l'evoluzione tecnica dell'ap
 
 ---
 
-*L'app è così evoluta da un tool tattico isolato a un software omnicanale con operatività edge/cloud per l'intero reparto aziendale (v2.0.0).*
+## 📊 Fase 6: Analisi dei Costi e Marginalità (14 Aprile 2026)
+**Focus:** Integrazione dei costi di fornitura per il calcolo e la visualizzazione della redditività in tempo reale durante la preventivazione.
+
+### Prerogative Tecniche Implementate:
+* **Integrazione Costi di Acquisto:** Esposizione dei prezzi di costo fornitore nel popup di selezione articoli, nella lista del preventivo in corso e nel riepilogo finale.
+* **Calcolo Marginalità Dinamico:** Algoritmo matematico per determinare il margine netto di guadagno in tempo reale, visualizzato sia in valore assoluto che in percentuale (%), consentendo ai venditori di monitorare la redditività delle transazioni per ogni articolo e a livello globale.
+* **UI/UX Intuitiva:** Implementazione di badge identificativi coerenti con l'attuale design system (es. indicatori di sconto), in modo da fornire un immediato feedback finanziario senza appesantire la lettura della lista.
+
+---
+
+## 🚚 Fase 7: Smart Tracking e Gestione Cantieri (15 Aprile 2026)
+**Focus:** Separazione dei dati logistici dall'anagrafica statica per abilitare la gestione dinamica delle consegne per cliente.
+
+### Prerogative Tecniche Implementate:
+* **Disaccoppiamento Dati Operativi:** Separazione delle referenze di recapito telefonico e degli indirizzi di cantiere (destinazione merce) dai dati statici del cliente. Questo permette di elaborare ordini al medesimo committente potendo variare il luogo di lavorazione effettivo.
+* **Smart Storage e Autocompletamento:** Introduzione di un sistema intelligente che memorizza silenziosamente i riferimenti logistici digitati per cliente e li suggerisce in fase di redazione nel checkout, velocizzando sensibilmente i follow-up.
+* **Refactoring Omnicanale degli Export:** Strutturazione dei nuovi metadati in modo che alimentino direttamente e dinamicamente l'output multipiattaforma: integrati nelle stampe PDF, nell'auto-generazione delle e-mail e inseriti nelle celle dei report in formato nativo Excel (.xlsx).
+
+---
+
+*L'app è così in rapida evoluzione continua da un tool tattico isolato a un ecosistema gestionale omnicanale intelligente, forte di operatività edge-cloud.*

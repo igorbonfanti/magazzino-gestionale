@@ -1108,6 +1108,76 @@ $('prevEmailBtn').addEventListener('click', async function() {
     window.location.href = "mailto:" + toEmail + "?subject=" + subject + "&body=" + body;
 });
 
+$('prevWhatsappBtn').addEventListener('click', async function() {
+    if(!cart.length) return;
+    
+    var qId = await saveQuoteToCloud('WHATSAPP');
+    var qStr = qId ? " (N° " + qId + ")" : "";
+    var qc = getQuoteCustomer();
+    
+    var bodyText = "*Preventivo" + qStr + "*\n\n";
+    if(qc) {
+        bodyText += "Spett.le *" + qc.ragione + "*\n";
+        if(qc.cantiere) bodyText += "Cantiere: _" + qc.cantiere + "_\n";
+    }
+    bodyText += "\n*Elenco Articoli:*\n";
+    var netto = 0;
+    cart.forEach(function(c){
+        var unitNet = c.item.net;
+        if(c.extraDiscount > 0) unitNet = unitNet * (1 - c.extraDiscount/100);
+        unitNet = ro2(unitNet);
+        var sub = ro2(c.qty * (unitNet || 0));
+        netto += sub;
+        var discText = "";
+        var discParts = [];
+        if(c.item.sconto > 0) discParts.push('-'+c.item.sconto+'%');
+        if(c.extraDiscount > 0) discParts.push('-'+c.extraDiscount+'%');
+        if(discParts.length > 0) discText = " (_Sc. " + discParts.join('|') + "_)";
+        
+        bodyText += "▪️ " + c.qty + "x " + c.item.desc + discText + " (*€ " + fp(sub) + "*)\n";
+    });
+    
+    netto = ro2(netto);
+    var baseIva = ro2(netto * 0.22);
+    var totIvaInc = ro2(netto + baseIva);
+    var globalDiscount = getGlobalDiscountVal();
+    var finalTotIvaInc = ro2(totIvaInc - globalDiscount);
+    if(finalTotIvaInc < 0) finalTotIvaInc = 0;
+    var finalNetto = ro2(finalTotIvaInc / 1.22);
+    var finalIva = ro2(finalTotIvaInc - finalNetto);
+
+    if(globalDiscount > 0) {
+        bodyText += "\nSconto di Cassa (IVA incl.): *-€ " + fp(globalDiscount) + "*";
+    }
+    
+    bodyText += "\n\nTotale Netto: € " + fp(finalNetto);
+    bodyText += "\nIVA 22%: € " + fp(finalIva);
+    bodyText += "\n*Totale Finale: € " + fp(finalTotIvaInc) + "*";
+    
+    bodyText += "\n\n_Il Magazzino Edile S.r.l._";
+    
+    var toPhone = "";
+    if(qc && qc.tel) toPhone = qc.tel;
+    
+    // Clean phone number
+    toPhone = toPhone.replace(/\s+/g, '');
+    if(toPhone !== "") {
+        if(!toPhone.startsWith("+") && !toPhone.startsWith("00")) {
+            toPhone = "+39" + toPhone;
+        }
+        // Remove the + for the wa.me link
+        toPhone = toPhone.replace('+', '');
+    } else {
+        if(!confirm("Nessun numero di telefono trovato. Vuoi aprire WhatsApp per cercare manualmente il contatto?")) {
+            return;
+        }
+    }
+    
+    var textEncoded = encodeURIComponent(bodyText);
+    var waUrl = "https://wa.me/" + toPhone + "?text=" + textEncoded;
+    window.open(waUrl, '_blank');
+});
+
 $('prevExportBtn').addEventListener('click',function(){
   if(!cart.length)return;
   if(typeof XLSX === 'undefined') {
