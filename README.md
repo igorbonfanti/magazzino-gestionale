@@ -54,6 +54,16 @@ L'applicazione consuma cataloghi in formato foglio di calcolo. Al primo avvio, t
 L'architettura prevede la possibilità di impacchettare l'app. Troverai incluso uno script PowerShell (`build_standalone.ps1`) che unisce e compatta l'HTML, il CSS, e il codice JavaScript (convertendo eventuali risorse grafiche in Base64) generando un unico file finale chiamato `Magazzino_App_Mobile.html`.
 Questo file è completamente portabile (lo si può per esempio inviare per mail ad un collega che potrà aprirlo ed usarlo al volo).
 
+> ⚠️ **Il file generato non va committato.** Incorpora il listino completo —
+> codici, prezzi, sconti e fornitori — in chiaro dentro l'HTML. In un repository
+> pubblico come questo diventa scaricabile da chiunque, e trattandosi di un file
+> statico su GitHub Pages **le regole Firebase non lo proteggono**. La copia
+> precedente è stata rimossa per questo motivo.
+>
+> Va inoltre ricordato che il listino incorporato è una fotografia del momento
+> del build: l'app viva scarica invece `listino.xlsx` da Firebase Storage a ogni
+> avvio, quindi il file standalone invecchia da solo.
+
 Per eseguire la compilazione in Windows:
 1. Apri il terminale **Windows PowerShell**.
 2. Naviga nella root del progetto.
