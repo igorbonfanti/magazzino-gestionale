@@ -1,0 +1,8 @@
+# Artefatto di build_standalone.ps1: NON va versionato.
+# Incorpora il listino completo (prezzi, sconti, fornitori) in chiaro, e questo
+# repository e' pubblico. Essendo un file statico, le regole Firebase non lo
+# proteggono: chiunque abbia l'URL lo scarica.
+Magazzino_App_Mobile.html
+
+# Sorgenti dati aziendali usati dal build
+*.xlsx

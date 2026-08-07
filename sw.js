@@ -1,13 +1,19 @@
-const CACHE_NAME = 'magazzino-pos-v2.2.0';
+// Alzare SEMPRE la versione quando cambiano index.html, app.js o auth-gate.js:
+// la strategia e' cache-first senza rivalidazione, quindi senza un nome nuovo
+// i client gia' installati continuerebbero a servire la versione vecchia.
+// v2.3.0: introdotto il login (auth-gate.js).
+const CACHE_NAME = 'magazzino-pos-v2.3.0';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './auth-gate.js',
   './manifest.json',
   'https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
   'https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js',
+  'https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js',
   'https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore-compat.js'
 ];
 

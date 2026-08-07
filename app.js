@@ -18,16 +18,22 @@ window.currentQuoteIdSaved = null;
 var CUSTOMER_META = {};
 
 // Firebase Init
+// auth-gate.js ha gia' chiamato initializeApp: qui va solo completata
+// l'inizializzazione se per qualche motivo il gate non fosse stato caricato.
+// Senza il guard, il secondo initializeApp lancerebbe "duplicate-app" e il
+// catch lascerebbe db a null, rompendo tutta la sincronizzazione.
 var db = null;
 try {
-  firebase.initializeApp({
-      apiKey: "AIzaSyCLdOfp4z3FUJX2xt-xBZciyjxJZWeoh7A",
-      authDomain: "magazzino-edile-pos.firebaseapp.com",
-      projectId: "magazzino-edile-pos",
-      storageBucket: "magazzino-edile-pos.firebasestorage.app",
-      messagingSenderId: "696561179056",
-      appId: "1:696561179056:web:fc6b1db62ed256fd3fde75"
-  });
+  if (!firebase.apps.length) {
+    firebase.initializeApp({
+        apiKey: "AIzaSyCLdOfp4z3FUJX2xt-xBZciyjxJZWeoh7A",
+        authDomain: "magazzino-edile-pos.firebaseapp.com",
+        projectId: "magazzino-edile-pos",
+        storageBucket: "magazzino-edile-pos.firebasestorage.app",
+        messagingSenderId: "696561179056",
+        appId: "1:696561179056:web:fc6b1db62ed256fd3fde75"
+    });
+  }
   db = firebase.firestore();
 } catch(e) { console.warn("Firebase non configurato", e); }
 
@@ -55,8 +61,15 @@ function titleCase(s){return s.split(' ').map(function(w){return w.charAt(0)+w.s
 function hl(text,terms){var r=esc(text);terms.forEach(function(t){r=r.replace(new RegExp('('+t.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&')+')','gi'),'<span class="highlight">$1</span>')});return r}
 
 // --- Initialization & Setup ---
+// La sincronizzazione parte solo a utente autenticato: con le regole chiuse
+// una lettura anonima fallirebbe con permission-denied. AuthGate.pronto()
+// richiama subito se la sessione e' gia' attiva, altrimenti dopo il login.
+// Attenzione: il corpo non deve contenere "});" annidati. build_standalone.ps1
+// rimuove questo blocco con una regex non golosa che si ferma al primo "});",
+// e un annidamento produrrebbe codice troncato nella build mobile.
 document.addEventListener('DOMContentLoaded', () => {
-    checkCloudUpdates();
+    if (window.AuthGate) AuthGate.pronto(checkCloudUpdates);
+    else checkCloudUpdates();
 });
 
 btnReloadListino.addEventListener('click', () => {

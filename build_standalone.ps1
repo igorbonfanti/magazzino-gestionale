@@ -8,6 +8,7 @@ $excelB64 = [System.Convert]::ToBase64String($excelBytes)
 $html = Get-Content (Join-Path $PSScriptRoot 'index.html') -Raw -Encoding UTF8
 $css = Get-Content (Join-Path $PSScriptRoot 'styles.css') -Raw -Encoding UTF8
 $js = Get-Content (Join-Path $PSScriptRoot 'app.js') -Raw -Encoding UTF8
+$authGate = Get-Content (Join-Path $PSScriptRoot 'auth-gate.js') -Raw -Encoding UTF8
 
 # 2. Modify index.html
 # Remove the upload button logic and upload card
@@ -125,7 +126,11 @@ $js = $js + "`n`n" + $autoLoadLogic
 $js = $js -replace "uploadOverlay\.style\.display = 'none';", ""
 
 # 4. Integrate into HTML
+# auth-gate.js va incorporato come il resto: il file mobile deve restare
+# autosufficiente, e un <script src="auth-gate.js"> qui dentro non risolverebbe.
+# Deve inoltre precedere app.js, che aspetta AuthGate per leggere Firestore.
 $html = $html -replace '<link rel="stylesheet" href="styles.css">', "<style>`n$css`n</style>"
+$html = $html -replace '<script src="auth-gate\.js"></script>', "<script>`n$authGate`n</script>"
 $html = $html -replace '<script src="app.js"></script>', "<script>`n$js`n</script>"
 
 # 5. Output
