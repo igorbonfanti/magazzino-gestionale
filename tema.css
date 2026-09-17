@@ -1,0 +1,308 @@
+/* ===========================================================================
+   TEMA ANTIGRAVITY v2 — foglio dei colori condiviso
+   ===========================================================================
+
+   Un solo file per tutte le app del magazzino: magazzino-gestionale,
+   magazzino-scorte, ordini (analisi fornitori), controllo-ddt (riconciliazione
+   POS). Si copia identico in ogni repository e si carica PRIMA del foglio di
+   stile dell'app:
+
+       <link rel="stylesheet" href="tema.css">
+       <link rel="stylesheet" href="styles.css">
+
+   Nessuna app deve ridefinire questi colori nel proprio :root. Se un colore
+   manca, si aggiunge qui e si riporta il file negli altri repository.
+
+   --------------------------------------------------------------------------
+   COSA CAMBIA RISPETTO ALLA v1
+
+   1. Esiste anche il tema chiaro. La v1 era solo scura: in cantiere, con il
+      sole sullo schermo, era illeggibile.
+   2. I contrasti passano WCAG AA (4.5:1) su ogni superficie. Nella v1
+      --text3 stava a 3.1:1 sulle intestazioni di tabella: sotto la soglia,
+      ed e' il colore con cui sono scritte tutte le etichette.
+   3. Gli sfondi scuri sono rimasti quelli di prima. L'identita' non cambia,
+      cambia cio' che non si leggeva.
+
+   --------------------------------------------------------------------------
+   COME SI SCEGLIE IL TEMA
+
+   Di suo segue il sistema operativo. L'interruttore dell'app scrive
+   data-tema="chiaro" o "scuro" su <html> e quella scelta vince. Sono gli
+   stessi valori che magazzino-scorte usa gia', quindi il suo tema.ts
+   continua a funzionare senza modifiche.
+
+   La stampa e' sempre chiara: un preventivo su carta non si stampa nero.
+   =========================================================================== */
+
+/* --- TEMA CHIARO (predefinito) ------------------------------------------ */
+:root {
+  color-scheme: light;
+
+  /* Superfici, dalla piu' arretrata alla piu' in rilievo */
+  --bg: #f2f4f8;
+  --surface: #ffffff;
+  --surface2: #eceff5;
+  --surface3: #e0e4ed;
+
+  /* Bordi: quello normale divide, quello forte perimetra */
+  --border: #d3d8e3;
+  --border-strong: #aeb6c7;
+
+  /* Testo. Tutti e tre passano AA su bg, surface, surface2 e surface3 */
+  --text: #161922;
+  --text2: #4a5165;
+  --text3: #5e657b;
+
+  /* Marchio. --accent e' il riempimento, --accent-ink cio' che ci scrivi
+     sopra, --accent-text l'ambra da usare come TESTO sulla pagina: l'ambra
+     del riempimento su fondo chiaro starebbe a 2:1, illeggibile. */
+  --accent: #e08c00;
+  --accent2: #c77800;
+  --accent-text: #94580a;
+  --accent-ink: #1a1206;
+  --accent-bg: rgba(224, 140, 0, 0.12);
+  --accent-border: rgba(224, 140, 0, 0.45);
+
+  /* Stati */
+  --green: #0e7540;
+  --green-bg: rgba(14, 117, 64, 0.10);
+  --green-border: rgba(14, 117, 64, 0.28);
+
+  --red: #c12828;
+  --red-bg: rgba(193, 40, 40, 0.10);
+  --red-border: rgba(193, 40, 40, 0.30);
+
+  --orange: #a64c08;
+  --orange-bg: rgba(166, 76, 8, 0.10);
+  --orange-border: rgba(166, 76, 8, 0.30);
+
+  --blue: #1d4ed8;
+  --blue-bg: rgba(29, 78, 216, 0.10);
+  --blue-border: rgba(29, 78, 216, 0.28);
+
+  /* Ombre: sul chiaro sono appena accennate, altrimenti sporcano */
+  --shadow: 0 1px 2px rgba(22, 25, 34, 0.06), 0 2px 8px rgba(22, 25, 34, 0.06);
+  --shadow-lg: 0 8px 24px rgba(22, 25, 34, 0.10), 0 24px 56px rgba(22, 25, 34, 0.12);
+  --overlay-veil: rgba(22, 25, 34, 0.42);
+}
+
+/* --- TEMA SCURO --------------------------------------------------------- */
+/* Scritto una volta sola in un @media, e riapplicato tale e quale quando lo
+   sceglie l'utente. I due blocchi DEVONO restare identici nel contenuto. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema='chiaro']) {
+    color-scheme: dark;
+
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232735;
+    --surface3: #2c3044;
+
+    --border: #333850;
+    --border-strong: #454b6b;
+
+    --text: #e8eaf0;
+    --text2: #aeb3c7;
+    --text3: #9397b1;
+
+    --accent: #f59e0b;
+    --accent2: #fbbf24;
+    --accent-text: #fbbf24;
+    --accent-ink: #0f1117;
+    --accent-bg: rgba(245, 158, 11, 0.10);
+    --accent-border: rgba(245, 158, 11, 0.35);
+
+    --green: #34d07f;
+    --green-bg: rgba(52, 208, 127, 0.10);
+    --green-border: rgba(52, 208, 127, 0.28);
+
+    --red: #ff6b6b;
+    --red-bg: rgba(255, 107, 107, 0.10);
+    --red-border: rgba(255, 107, 107, 0.30);
+
+    --orange: #fb923c;
+    --orange-bg: rgba(251, 146, 60, 0.12);
+    --orange-border: rgba(251, 146, 60, 0.32);
+
+    --blue: #60a5fa;
+    --blue-bg: rgba(96, 165, 250, 0.10);
+    --blue-border: rgba(96, 165, 250, 0.28);
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.30), 0 2px 8px rgba(0, 0, 0, 0.30);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45), 0 24px 64px rgba(0, 0, 0, 0.50);
+    --overlay-veil: rgba(0, 0, 0, 0.62);
+  }
+}
+
+:root[data-tema='scuro'] {
+  color-scheme: dark;
+
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232735;
+  --surface3: #2c3044;
+
+  --border: #333850;
+  --border-strong: #454b6b;
+
+  --text: #e8eaf0;
+  --text2: #aeb3c7;
+  --text3: #9397b1;
+
+  --accent: #f59e0b;
+  --accent2: #fbbf24;
+  --accent-text: #fbbf24;
+  --accent-ink: #0f1117;
+  --accent-bg: rgba(245, 158, 11, 0.10);
+  --accent-border: rgba(245, 158, 11, 0.35);
+
+  --green: #34d07f;
+  --green-bg: rgba(52, 208, 127, 0.10);
+  --green-border: rgba(52, 208, 127, 0.28);
+
+  --red: #ff6b6b;
+  --red-bg: rgba(255, 107, 107, 0.10);
+  --red-border: rgba(255, 107, 107, 0.30);
+
+  --orange: #fb923c;
+  --orange-bg: rgba(251, 146, 60, 0.12);
+  --orange-border: rgba(251, 146, 60, 0.32);
+
+  --blue: #60a5fa;
+  --blue-bg: rgba(96, 165, 250, 0.10);
+  --blue-border: rgba(96, 165, 250, 0.28);
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.30), 0 2px 8px rgba(0, 0, 0, 0.30);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45), 0 24px 64px rgba(0, 0, 0, 0.50);
+  --overlay-veil: rgba(0, 0, 0, 0.62);
+}
+
+/* --- MISURE ------------------------------------------------------------- */
+/* Fuori dai blocchi di tema: non cambiano fra chiaro e scuro. */
+:root {
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-full: 9999px;
+
+  /* Scala tipografica. La v1 metteva le intestazioni di tabella a 10px e le
+     celle a 12px: troppo piccolo per leggere codici e importi tutto il
+     giorno. Un gradino sopra, e i dati si leggono senza avvicinarsi. */
+  --fs-micro: 11px;   /* intestazioni di colonna, badge */
+  --fs-sm: 13px;      /* celle di tabella, testo secondario */
+  --fs-base: 14px;    /* testo corrente, campi */
+  --fs-lg: 16px;      /* titoli di sezione */
+  --fs-xl: 19px;      /* titoli di modale */
+
+  --font-ui: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-dati: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+
+  --transition: all .15s ease-in-out;
+}
+
+/* --- NOMI ITALIANI (per magazzino-scorte) -------------------------------- */
+/* magazzino-scorte ha il foglio di stile scritto con nomi italiani. Invece di
+   riscriverne 1.600 righe, gli alias puntano agli stessi valori: quell'app
+   adotta il tema cancellando i propri :root e nient'altro. */
+:root {
+  --fondo: var(--bg);
+  --pannello: var(--surface);
+  --testo: var(--text);
+  --testo-secondario: var(--text2);
+  --tenue: var(--text3);
+  --bordo: var(--border);
+  --bordo-medio: var(--border-strong);
+  --bordo-forte: var(--text2);
+  --campo: var(--surface);
+  --bordo-campo: var(--border-strong);
+  --accento: var(--accent-text);
+  --accento-tenue: var(--accent-bg);
+  --verde: var(--green);
+  --righe-alterne: var(--surface2);
+  --riga-sotto-mouse: var(--surface2);
+  --riga-attiva: var(--accent-bg);
+  --evidenza: var(--accent-bg);
+}
+
+/* --- BASE COMUNE -------------------------------------------------------- */
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+}
+
+/* Il contorno di messa a fuoco non si toglie mai: senza, l'app non si usa da
+   tastiera. :focus-visible lo mostra a chi naviga col tab e non a chi clicca. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: var(--accent-bg);
+  color: var(--text);
+}
+
+::placeholder {
+  color: var(--text3);
+  opacity: 1; /* Firefox lo sbiadisce di suo, e scende sotto il contrasto */
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-full);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background-color: var(--text3); background-clip: content-box; }
+
+/* Chi ha chiesto meno animazioni al sistema operativo le ha chieste sul serio. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* La carta e' bianca: si stampa sempre col tema chiaro, qualunque sia quello
+   a schermo. Senza questo, un preventivo stampato in tema scuro esce con il
+   fondo nero o, peggio, con il testo chiaro invisibile. */
+@media print {
+  :root,
+  :root[data-tema='scuro'] {
+    color-scheme: light;
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface2: #f4f4f6;
+    --surface3: #ebebef;
+    --border: #ccccd4;
+    --border-strong: #9a9aa6;
+    --text: #000000;
+    --text2: #333333;
+    --text3: #555555;
+    --accent: #b45309;
+    --accent2: #92400e;
+    --accent-text: #92400e;
+    --accent-ink: #ffffff;
+    --accent-bg: transparent;
+    --green: #0e7540;
+    --red: #b02020;
+    --orange: #a64c08;
+    --blue: #1d4ed8;
+    --shadow: none;
+    --shadow-lg: none;
+  }
+  body { background: #ffffff; color: #000000; }
+}

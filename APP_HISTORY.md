@@ -94,3 +94,110 @@ Questo documento traccia la storia dello sviluppo e l'evoluzione tecnica dell'ap
 ---
 
 *L'app è così in rapida evoluzione continua da un tool tattico isolato a un ecosistema gestionale omnicanale intelligente, forte di operatività edge-cloud.*
+
+---
+
+## 🧾 Fase 8: Articoli Fuori Listino (17 Settembre 2026)
+**Focus:** Preventivare una voce che in anagrafica non esiste, senza toccare il flusso di chi lavora.
+
+* **Via d'uscita dove serve:** la scorciatoia compare sotto una ricerca senza
+  risultati, gia' precompilata con il termine digitato, e in un bottone accanto
+  ai filtri. Il percorso normale — cerca, clicca, aggiungi — resta identico.
+* **Voce una tantum:** descrizione, codice facoltativo, unita' di misura,
+  prezzo netto e quantita'. Non entra nel listino: vive nel carrello, viene
+  storicizzata nel documento e li' finisce.
+* **Identita' di riga:** il carrello non distingue piu' le righe dal solo
+  codice, che per queste voci puo' essere vuoto o ripetuto. Ogni voce fuori
+  listino porta una chiave propria, quindi due voci uguali restano due righe.
+* **Propagazione completa:** carrello, riepilogo, PDF, stampa, Excel (con
+  l'unita' di misura in coda alla descrizione, per non rompere le formule),
+  email, WhatsApp, salvataggio su Firestore e riapertura dallo storico.
+* **Marcatore asimmetrico:** a schermo la riga porta il badge "fuori listino";
+  nella stampa e nel PDF sparisce, perche' al cliente non interessa da quale
+  archivio arriva.
+
+### Correzioni incluse
+* **Foglio di stile troncato:** una graffa mancante in `styles.css` lasciava
+  aperta la media query dei 768px. Tutto il CSS successivo — l'intera tabella
+  dello Storico e le regole del modale cliente — era inerte su desktop.
+* **Sconto extra perso:** riaprendo un preventivo dallo storico, lo sconto
+  di riga del venditore non veniva ricaricato e il documento tornava a
+  prezzo pieno.
+
+---
+
+## 🎨 Fase 9: Tema Condiviso v2 (17 Settembre 2026)
+**Focus:** Un solo linguaggio visivo per le quattro app, leggibile anche in cantiere.
+
+* **Un file, quattro repository:** `tema.css` e `tema.js`, identici in
+  magazzino-gestionale, magazzino-scorte, ordini e controllo-ddt. Nessuna app
+  ridefinisce piu' i colori nel proprio `:root`. Regole e procedura di
+  adozione in [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md).
+* **Tema chiaro:** la v1 era solo scura e sotto il sole non si leggeva. Ora
+  il tema segue il sistema operativo, e l'interruttore in testata lo forza e
+  lo ricorda.
+* **Contrasti misurati:** `--text3` — il colore di tutte le intestazioni di
+  colonna e dei placeholder — stava a 2.7–3.5:1, sotto la soglia WCAG AA.
+  Ogni colore di testo della v2 passa 4.5:1 su ogni superficie, in entrambi i
+  temi.
+* **Scala tipografica:** intestazioni da 10 a 11px, celle da 12 a 13px, netto
+  di riga a 14px. Il listino si legge senza avvicinarsi allo schermo.
+* **Listino a schede su telefono:** sotto i 768px la tabella a otto colonne
+  scorreva in orizzontale e il prezzo netto restava fuori schermo. Le stesse
+  celle diventano una scheda per articolo, col netto in evidenza.
+* **Schermata di accesso coerente:** `auth-gate.js` prende i colori dal tema,
+  con valori di riserva per le app che non lo caricano ancora.
+
+### Correzioni incluse
+* **Storico limitato a 200 documenti:** la ricerca scaricava gli ultimi 200
+  preventivi e filtrava nel browser. Superata quella soglia i piu' vecchi
+  erano irraggiungibili. Ora l'intervallo di date e' un vincolo della query e
+  l'archivio arriva a pagine, con un cursore.
+* **Sconto di cassa perso:** riaprendo un documento, l'arrotondamento veniva
+  azzerato e il totale non coincideva piu' con l'originale.
+* **Perdita di memoria nello storico:** ogni preventivo restava appeso a
+  `window['_szQuote_...']` e ogni riga portava un `onclick` con il numero
+  interpolato nell'HTML. Sostituiti da un elenco in memoria e dalla delega
+  degli eventi.
+* **Variabile inesistente:** cinque punti del codice usavano `var(--danger)`,
+  che non e' mai stato definito in nessuna versione del tema.
+
+---
+
+## 🧩 Fase 10: Un solo programma (17 Settembre 2026)
+**Focus:** Componenti, testate e menu condivisi. Quattro app che sembrano quattro moduli dello stesso gestionale.
+
+Il tema v2 aveva unificato i **colori**, ma ogni app disegnava i propri
+bottoni, campi e tabelle — e due app con gli stessi colori e bottoni diversi
+restano due app diverse.
+
+* **Secondo strato condiviso, `base.css`:** le forme. Bottoni, campi, tabelle,
+  modali, pastiglie, testata e menu, definiti una volta e usati da tutte e
+  quattro. Ogni app ha dovuto **cancellare** le proprie definizioni di `.btn`:
+  il foglio dell'app si carica per ultimo, quindi finché restavano vincevano
+  loro.
+* **Nomi a prova di collisione:** i componenti generici hanno il prefisso
+  `ag-`. Non è vezzo: in `magazzino-scorte` la classe `.campo` marca le colonne
+  modificabili di una tabella, non un campo di testo — stilarla come input
+  avrebbe riempito quelle intestazioni di riquadri bianchi. Fanno eccezione i
+  bottoni, `.btn` in tre app su quattro, con `.bottone` di scorte tenuto come
+  alias.
+* **Un programma, quattro moduli:** il titolo dice sempre *Il Magazzino
+  Edile · <Modulo>*. Sparite le insegne scollegate — *Antigravity Ordini*,
+  *Riconcilia*, *Listino Prezzi Netto*. Anche i titoli delle schede del
+  browser seguono lo schema.
+* **Una sola navigazione:** barra a linguette orizzontale sotto la testata,
+  voce attiva sottolineata in ambra. `magazzino-gestionale` non aveva menu,
+  `controllo-ddt` aveva una colonna a sinistra: ora hanno la stessa barra di
+  `magazzino-scorte`. Orizzontale perché su tablet la colonna mangia metà
+  schermo.
+* **`magazzino-scorte` allineata:** carattere da system-ui a DM Sans, bottone
+  primario dal nero all'ambra, angoli da 5 a 8px.
+
+### Correzioni incluse
+* **La testata finiva sulla carta:** convertendo `magazzino-scorte` si perdeva
+  la classe `.schermo`, che significava "non stampare". Ora `base.css` nasconde
+  `.ag-header` e `.ag-nav` in `@media print`, per tutte e quattro.
+* **`.tasto-grosso` non era mai stata definita:** il bottone "Entra" della
+  schermata di accesso di `magazzino-scorte` usciva col grigio predefinito del
+  browser, ed è la prima cosa che si vede dell'app.

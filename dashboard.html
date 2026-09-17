@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Il Magazzino Edile — Avvio</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tema.css">
+<link rel="stylesheet" href="base.css">
+<script src="tema.js"></script>
+<style>
+  /* Solo cio' che appartiene alla dashboard: tutto il resto viene da base.css */
+  body { min-height: 100dvh; }
+
+  .contenuto { max-width: 1040px; margin: 0 auto; padding: 28px 20px 56px; }
+
+  .saluto { margin: 28px 0 22px; }
+  .saluto h2 { font-size: 22px; margin-bottom: 4px; }
+  .saluto p { margin: 0; color: var(--text3); font-size: var(--fs-sm); }
+
+  .griglia {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+  }
+
+  /* La scheda di un'app. Il colore vive solo nella barretta e nell'icona:
+     quattro tessere identiche per forma, distinte da una sola tinta. */
+  .app-card {
+    position: relative;
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 18px 18px 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: inherit;
+    overflow: hidden;
+    transition: border-color .15s, transform .15s, box-shadow .15s;
+  }
+  .app-card::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+    background: var(--tinta);
+  }
+  .app-card:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+  }
+  .app-card:focus-visible { transform: translateY(-2px); }
+
+  .app-testa { display: flex; align-items: center; gap: 11px; }
+  .app-icona {
+    width: 38px; height: 38px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 10px; font-size: 19px;
+    background: var(--tinta-velo);
+    border: 1px solid var(--tinta-bordo);
+  }
+  .app-nome { font-size: var(--fs-base); font-weight: 700; line-height: 1.25; }
+  .app-desc { margin: 0; font-size: var(--fs-sm); color: var(--text2); line-height: 1.45; }
+
+  .app-piede {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    margin-top: auto; padding-top: 4px;
+  }
+  .app-stato { font-size: var(--fs-micro); color: var(--text3); font-family: var(--font-dati); }
+  .app-freccia { color: var(--text3); font-size: var(--fs-base); transition: transform .15s, color .15s; }
+  .app-card:hover .app-freccia { transform: translateX(3px); color: var(--accent-text); }
+
+  /* Le quattro tinte: distinguono le app senza sfidare l'ambra del marchio,
+     che resta il colore dell'azione. */
+  .t-preventivi { --tinta: var(--accent); --tinta-velo: var(--accent-bg); --tinta-bordo: var(--accent-border); }
+  .t-scorte     { --tinta: var(--green);  --tinta-velo: var(--green-bg);  --tinta-bordo: var(--green-border); }
+  .t-ordini     { --tinta: var(--blue);   --tinta-velo: var(--blue-bg);   --tinta-bordo: var(--blue-border); }
+  .t-ddt        { --tinta: var(--orange); --tinta-velo: var(--orange-bg); --tinta-bordo: var(--orange-border); }
+
+  .sezione { margin-top: 38px; }
+  .sezione > h3 {
+    font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: .6px;
+    color: var(--text3); margin-bottom: 12px;
+  }
+
+  /* Vetrina dei componenti: serve a giudicare il tema, non e' parte della dashboard. */
+  .vetrina { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .riga-demo { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .riga-demo:last-child { margin-bottom: 0; }
+  .titolo-demo {
+    font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: .5px;
+    color: var(--text3); font-weight: 700; margin-bottom: 10px;
+  }
+</style>
+</head>
+<body>
+
+<header class="ag-header">
+  <div class="ag-logo">ME</div>
+  <div class="ag-titolo">
+    <h1>Il Magazzino Edile</h1>
+    <p>Gestionale interno</p>
+  </div>
+  <div class="ag-azioni">
+    <button class="btn btn-icona" id="btnTema" title="Cambia tema">🌙</button>
+    <button class="btn btn-ghost btn-sm">Esci</button>
+  </div>
+</header>
+
+<main class="contenuto">
+
+  <div class="saluto">
+    <h2>Buongiorno, Igor</h2>
+    <p id="dataOggi"></p>
+  </div>
+
+  <div class="griglia">
+
+    <a class="app-card t-preventivi" href="#">
+      <div class="app-testa">
+        <div class="app-icona">🧾</div>
+        <div class="app-nome">Preventivi e POS</div>
+      </div>
+      <p class="app-desc">Listino, carrello, preventivi in PDF ed Excel. Storico condiviso.</p>
+      <div class="app-piede">
+        <span class="app-stato">ultimo: PREV-2026-1000</span>
+        <span class="app-freccia">→</span>
+      </div>
+    </a>
+
+    <a class="app-card t-scorte" href="#">
+      <div class="app-testa">
+        <div class="app-icona">📦</div>
+        <div class="app-nome">Scorte</div>
+      </div>
+      <p class="app-desc">Conteggio giacenze nelle due sedi e ordine del giorno che si compila da sé.</p>
+      <div class="app-piede">
+        <span class="app-stato">2 rilevazioni in bozza</span>
+        <span class="app-freccia">→</span>
+      </div>
+    </a>
+
+    <a class="app-card t-ordini" href="#">
+      <div class="app-testa">
+        <div class="app-icona">📊</div>
+        <div class="app-nome">Ordini fornitori</div>
+      </div>
+      <p class="app-desc">Analisi delle conferme d'ordine e degli oneri, con confronto dei prezzi nel tempo.</p>
+      <div class="app-piede">
+        <span class="app-stato">14 documenti questo mese</span>
+        <span class="app-freccia">→</span>
+      </div>
+    </a>
+
+    <a class="app-card t-ddt" href="#">
+      <div class="app-testa">
+        <div class="app-icona">🚚</div>
+        <div class="app-nome">DDT e incassi POS</div>
+      </div>
+      <p class="app-desc">Riconciliazione fra i documenti di trasporto e le transazioni Nexi.</p>
+      <div class="app-piede">
+        <span class="app-stato">3 da quadrare</span>
+        <span class="app-freccia">→</span>
+      </div>
+    </a>
+
+  </div>
+
+  <section class="sezione">
+    <h3>Gli stessi componenti, in tutte e quattro</h3>
+    <div class="vetrina">
+
+      <div class="ag-card">
+        <div class="titolo-demo">Bottoni</div>
+        <div class="riga-demo">
+          <button class="btn btn-primary">Aggiungi</button>
+          <button class="btn">Annulla</button>
+          <button class="btn btn-danger">Elimina</button>
+          <button class="btn btn-ghost">Chiudi</button>
+        </div>
+        <div class="riga-demo">
+          <button class="btn btn-sm">Piccolo</button>
+          <button class="btn btn-primary btn-lg">Grande</button>
+          <button class="btn btn-icona">⚙️</button>
+          <button class="btn" disabled>Disattivo</button>
+        </div>
+      </div>
+
+      <div class="ag-card">
+        <div class="titolo-demo">Campi</div>
+        <div class="riga-demo" style="display:block">
+          <label class="ag-etichetta" for="d1">Descrizione</label>
+          <input class="ag-campo" id="d1" placeholder="Es. Nolo piattaforma aerea">
+        </div>
+        <div class="riga-demo" style="display:block">
+          <label class="ag-etichetta" for="d2">Prezzo unitario €</label>
+          <input class="ag-campo ag-dati" id="d2" value="185,50">
+        </div>
+      </div>
+
+      <div class="ag-card">
+        <div class="titolo-demo">Pastiglie</div>
+        <div class="riga-demo">
+          <span class="ag-pastiglia">neutra</span>
+          <span class="ag-pastiglia ag-pastiglia-verde">quadrato</span>
+          <span class="ag-pastiglia ag-pastiglia-rossa">scoperto</span>
+          <span class="ag-pastiglia ag-pastiglia-arancio">fuori listino</span>
+          <span class="ag-pastiglia ag-pastiglia-blu">in attesa</span>
+          <span class="ag-pastiglia ag-pastiglia-ambra">bozza</span>
+        </div>
+      </div>
+
+      <div class="ag-card" style="grid-column: 1 / -1; padding: 0; overflow: hidden;">
+        <div class="titolo-demo" style="padding: 18px 18px 0;">Tabella dati</div>
+        <div class="ag-tabella-wrap" style="border:0; border-radius:0; margin-top:10px;">
+          <table class="ag-tabella">
+            <thead>
+              <tr><th>Codice</th><th>Descrizione</th><th>Fornitore</th><th class="r">Listino €</th><th class="r">Sc.%</th><th class="r">Netto €</th></tr>
+            </thead>
+            <tbody>
+              <tr class="cliccabile"><td class="ag-dati">MTN001</td><td>Mattone forato 8x12x24</td><td>Fornace Rossi</td><td class="r">0,95</td><td class="r">−10</td><td class="r">0,86</td></tr>
+              <tr class="cliccabile"><td class="ag-dati">CEM100</td><td>Cemento 32.5 sacco 25 kg</td><td>Italcementi</td><td class="r">6,40</td><td class="r"></td><td class="r">6,40</td></tr>
+              <tr class="cliccabile"><td class="ag-dati">FER12</td><td>Tondino ferro 12 mm barra 6 m</td><td>Siderurgica Sud</td><td class="r">11,20</td><td class="r">−5</td><td class="r">10,64</td></tr>
+              <tr class="cliccabile"><td><span class="ag-pastiglia ag-pastiglia-arancio">fuori listino</span></td><td>Nolo piattaforma aerea 12 m</td><td>—</td><td class="r">185,50</td><td class="r"></td><td class="r">185,50</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<script>
+  if (window.Tema) Tema.collega(document.getElementById('btnTema'));
+  document.getElementById('dataOggi').textContent =
+    new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+</script>
+</body>
+</html>

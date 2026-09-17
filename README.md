@@ -88,6 +88,18 @@ Se l'applicazione è hostata sotto HTTPS (o in `localhost` durante i test), i br
 - **Su Desktop (Chrome / Edge)**: Clicca o sull'icona apposita situata all'estrema destra della barra degli indirizzi o nel menu opzioni *"Installa app"*. L'applicazione verrà aggiunta tra i programmi.
 - **Su Smartphone Mobile**: Accedendo al link dell'app dal browser del device e selezionando *"Aggiungi a schermata Home"* dal menu nativo del sistema. Si comporterà da quel momento in avanti analoga ad un'app nativa intera.
 
+## 🎨 Tema
+
+L'aspetto non e' definito qui dentro: arriva da `tema.css` e `tema.js`,
+condivisi identici con le altre app del magazzino (magazzino-scorte, ordini,
+controllo-ddt). Tema chiaro e scuro, contrasti verificati WCAG AA,
+interruttore in testata che segue il sistema operativo e ricorda la scelta.
+
+Regole, tabella dei colori e procedura per adottarlo in un'altra app:
+[DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md). **Nessuna app deve ridefinire i colori
+nel proprio `:root`:** se un colore manca, si aggiunge a `tema.css` e si
+riporta il file negli altri repository.
+
 ## 📝 Documentazione Architettura e Roadmap
 Per ulteriori dettagli tecnici sullo sviluppo ed il progresso:
 - Leggi [APP_HISTORY.md](./APP_HISTORY.md) per l'evoluzione storica e i mutamenti di design pattern dall'origine offline fino all'integrazione Cloud attuale.

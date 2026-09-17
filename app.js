@@ -16,6 +16,11 @@ var starredItems = JSON.parse(localStorage.getItem('posStarred') || '[]');
 var currentCustomer = null;
 window.currentQuoteIdSaved = null;
 var CUSTOMER_META = {};
+// Voci una tantum non presenti in anagrafica: vivono solo nel carrello e nel
+// preventivo salvato, mai nel listino. Il contatore serve a dare a ognuna una
+// chiave propria, perche' il codice puo' essere vuoto o ripetuto.
+var customItemSeq = 0;
+var editingCustomUid = null;
 
 // Firebase Init
 // auth-gate.js ha gia' chiamato initializeApp: qui va solo completata
@@ -58,6 +63,32 @@ function esc(s){var d=document.createElement('div');d.textContent=s;return d.inn
 function fp(p){return p!=null?p.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}):'\u2014'}
 function ro2(n){return Math.round((n + Number.EPSILON) * 100) / 100;}
 function titleCase(s){return s.split(' ').map(function(w){return w.charAt(0)+w.slice(1).toLowerCase()}).join(' ')}
+// Accetta sia "12,50" che "12.50" che "1.234,56": l'operatore digita come gli
+// viene, e su tastiera numerica il separatore non e' sempre quello atteso.
+function parseNum(v){
+  var str = String(v == null ? '' : v).trim().replace(/[^0-9.,-]/g,'');
+  if(!str) return 0;
+  if(str.indexOf(',') !== -1) str = str.replace(/\./g,'').replace(',','.');
+  var n = parseFloat(str);
+  return isNaN(n) ? 0 : n;
+}
+// Il carrello non puo' piu' identificare una riga dal solo codice: gli articoli
+// fuori listino possono averlo vuoto, o uguale fra loro. Chi ha un uid usa
+// quello, gli articoli di listino restano identificati dal codice.
+function cartKey(item){
+  if(!item) return 'cod:';
+  return item.uid ? ('uid:'+item.uid) : ('cod:'+item.cod);
+}
+function findCartIndex(item){
+  var k = cartKey(item);
+  for(var i=0;i<cart.length;i++){ if(cartKey(cart[i].item) === k) return i; }
+  return -1;
+}
+// Quantita' leggibile: gli articoli fuori listino possono portarsi dietro una
+// unita' di misura ("12 ml"), quelli di listino no.
+function qtyLabel(c){
+  return c.qty + (c.item && c.item.um ? ' ' + c.item.um : '');
+}
 function hl(text,terms){var r=esc(text);terms.forEach(function(t){r=r.replace(new RegExp('('+t.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&')+')','gi'),'<span class="highlight">$1</span>')});return r}
 
 // --- Initialization & Setup ---
@@ -72,6 +103,9 @@ document.addEventListener('DOMContentLoaded', () => {
     else checkCloudUpdates();
 });
 
+// L'interruttore chiaro/scuro: tema.js si occupa di icona, memoria e attributo.
+if(window.Tema && $('btnTema')) Tema.collega($('btnTema'));
+
 btnReloadListino.addEventListener('click', () => {
     if(confirm('Vuoi forzare il ricalcolo dal Cloud? Questo chiuderà la sessione attuale.')){
         localStorage.removeItem('posListinoDate');
@@ -83,7 +117,7 @@ btnReloadListino.addEventListener('click', () => {
 async function checkCloudUpdates() {
     uploadOverlay.style.display = 'flex';
     if(!firebase.apps.length || !firebase.storage) {
-        uploadStatus.innerHTML = '<span style="color:var(--danger)">Firebase Storage non configurato</span>';
+        uploadStatus.innerHTML = '<span style="color:var(--red)">Firebase Storage non configurato</span>';
         setTimeout(initAppFallback, 2000);
         return;
     }
@@ -217,7 +251,7 @@ async function checkCloudUpdates() {
         
     } catch(err) {
         console.error(err);
-        uploadStatus.innerHTML = '<span style="color:var(--danger)">Errore Cloud: ' + err.message + '<br>Avvio con backup memoria offline in 3s...</span>';
+        uploadStatus.innerHTML = '<span style="color:var(--red)">Errore Cloud: ' + err.message + '<br>Avvio con backup memoria offline in 3s...</span>';
         setTimeout(initAppFallback, 3000);
     }
 }
@@ -239,7 +273,7 @@ function initAppFallback() {
         }
         initApp();
     } else {
-        uploadStatus.innerHTML = '<span style="color:var(--danger)">Nessun listino offline disponibile e impossibile scaricarlo. Contatta l\'amministratore.</span>';
+        uploadStatus.innerHTML = '<span style="color:var(--red)">Nessun listino offline disponibile e impossibile scaricarlo. Contatta l\'amministratore.</span>';
     }
 }
 
@@ -378,22 +412,25 @@ function doSearch(){
       });
   }
   var MAX=200,showing=results.slice(0,MAX);
-  var cartCods={};cart.forEach(function(c){cartCods[c.item.cod]=true});
+  var cartCods={};cart.forEach(function(c){if(!c.item.custom)cartCods[c.item.cod]=true});
 
   if(!results.length&&(terms.length||activeFilterCat||activeFilterForn)){
     tableWrap.style.display='block';
     tbody.innerHTML='';emptyState.style.display='flex';
     emptyState.querySelector('.empty-text').textContent='Nessun articolo trovato';
+    mostraScorciatoiaFuoriListino(searchInput.value.trim());
     resultsInfo.innerHTML='';return;
   }
   if(!results.length && !terms.length && !starredItems.length) {
     tableWrap.style.display='block';
     tbody.innerHTML='';emptyState.style.display='flex';
     emptyState.querySelector('.empty-text').textContent='Digita per cercare o aggiungi preferiti';
+    mostraScorciatoiaFuoriListino('');
     resultsInfo.innerHTML='';return;
   }
   
   emptyState.style.display='none';
+  mostraScorciatoiaFuoriListino('');
   if(isDefault) {
       resultsInfo.innerHTML='<span>&#9733; Articoli Preferiti ('+results.length+')</span>';
   } else {
@@ -441,8 +478,8 @@ function openAddModal(item){
     dd.style.display='none';
   }
 
-  var existing=null;
-  for(var i=0;i<cart.length;i++){if(cart[i].item.cod===item.cod){existing=cart[i];break}}
+  var idxEsistente=findCartIndex(item);
+  var existing=idxEsistente>-1?cart[idxEsistente]:null;
   mQtyInput.value=existing?existing.qty:1;
   var mExtraDiscountEl = $('mExtraDiscount');
   if(mExtraDiscountEl) mExtraDiscountEl.value = existing ? (existing.extraDiscount || 0) : 0;
@@ -480,12 +517,136 @@ $('mAddBtn').addEventListener('click',function(){
   var mED = $('mExtraDiscount');
   var ed=mED ? (parseFloat(mED.value)||0) : 0;
   if(qty<=0)return;
-  var existing=null;var wasUpdate=false;
-  for(var i=0;i<cart.length;i++){if(cart[i].item.cod===currentItem.cod){existing=cart[i];wasUpdate=true;break}}
+  var idxEsistente=findCartIndex(currentItem);
+  var existing=idxEsistente>-1?cart[idxEsistente]:null;
+  var wasUpdate=!!existing;
   if(existing){existing.qty=qty; existing.extraDiscount=ed;}else{cart.push({item:currentItem,qty:qty,extraDiscount:ed})}
   window.currentQuoteIdSaved = null;
   closeAddModal();renderCart();doSearch();
   showToast(wasUpdate?'\u2713 Quantit\u00e0 aggiornata':'\u2713 Aggiunto al preventivo');
+});
+
+// --- ARTICOLI FUORI LISTINO -------------------------------------------------
+// Il flusso normale resta quello di sempre: si cerca, si clicca, si aggiunge.
+// Questa e' solo la via d'uscita per la voce che in anagrafica non c'e'. Compare
+// dove serve davvero — sotto una ricerca senza risultati — e in un bottone
+// discreto accanto ai filtri. La voce creata non entra in ITEMS: resta nel
+// carrello, finisce nel preventivo salvato, e li' muore.
+
+var customItemOverlay = $('customItemOverlay');
+
+function mostraScorciatoiaFuoriListino(termine){
+  var b = $('emptyCustomBtn');
+  if(!b) return;
+  if(emptyState.style.display === 'none'){ b.style.display = 'none'; return; }
+  b.style.display = 'inline-flex';
+  b.textContent = termine
+    ? '\u2795 Aggiungi \u00ab' + (termine.length > 40 ? termine.slice(0,40) + '\u2026' : termine) + '\u00bb fuori listino'
+    : '\u2795 Aggiungi un articolo fuori listino';
+  b.setAttribute('data-termine', termine || '');
+}
+
+function aggiornaSubtotaleCustom(){
+  var prezzo = parseNum($('ciPrezzo').value);
+  var qty = parseNum($('ciQty').value);
+  $('ciSubtotal').textContent = '\u20ac ' + fp(ro2(ro2(prezzo) * qty));
+}
+
+function openCustomItemModal(prefillDesc, uid){
+  editingCustomUid = uid || null;
+  var voce = null;
+  if(uid){
+    for(var i=0;i<cart.length;i++){ if(cart[i].item.uid === uid){ voce = cart[i]; break; } }
+    if(!voce){ editingCustomUid = null; }
+  }
+
+  $('ciDesc').value   = voce ? voce.item.desc : (prefillDesc || '');
+  $('ciCod').value    = voce ? (voce.item.cod || '') : '';
+  $('ciUm').value     = voce ? (voce.item.um || '') : '';
+  $('ciPrezzo').value = voce ? fp(voce.item.net) : '';
+  $('ciQty').value    = voce ? voce.qty : '1';
+  $('customItemConfirmBtn').textContent = voce ? '\u2713 Aggiorna la voce' : '+ Aggiungi al preventivo';
+
+  aggiornaSubtotaleCustom();
+  customItemOverlay.classList.add('open');
+  setTimeout(function(){
+    var campo = voce ? $('ciPrezzo') : $('ciDesc');
+    campo.focus(); campo.select();
+  }, 100);
+}
+
+function closeCustomItemModal(){
+  customItemOverlay.classList.remove('open');
+  editingCustomUid = null;
+}
+
+function confirmCustomItem(){
+  var desc = $('ciDesc').value.trim();
+  if(!desc){ alert('La descrizione e\' obbligatoria.'); $('ciDesc').focus(); return; }
+
+  var prezzo = ro2(parseNum($('ciPrezzo').value));
+  if(prezzo < 0){ alert('Il prezzo non puo\' essere negativo.'); $('ciPrezzo').focus(); return; }
+  if(prezzo === 0 && !confirm('Prezzo a zero: la riga risultera\' in omaggio. Confermi?')){
+    $('ciPrezzo').focus(); return;
+  }
+
+  var qty = parseNum($('ciQty').value);
+  if(qty <= 0){ alert('La quantita\' deve essere maggiore di zero.'); $('ciQty').focus(); return; }
+
+  var cod = $('ciCod').value.trim();
+  var um  = $('ciUm').value.trim();
+
+  if(editingCustomUid){
+    for(var i=0;i<cart.length;i++){
+      if(cart[i].item.uid === editingCustomUid){
+        cart[i].item.desc = desc;
+        cart[i].item.cod = cod;
+        cart[i].item.um = um;
+        cart[i].item.prezzo = prezzo;
+        cart[i].item.net = prezzo;
+        cart[i].qty = qty;
+        break;
+      }
+    }
+    showToast('\u2713 Voce aggiornata');
+  } else {
+    cart.push({
+      item: {
+        uid: 'FL-' + Date.now() + '-' + (++customItemSeq),
+        custom: true,
+        cod: cod, desc: desc, um: um,
+        prezzo: prezzo, sconto: 0, net: prezzo,
+        grp: '', forn: ''
+      },
+      qty: qty,
+      extraDiscount: 0
+    });
+    showToast('\u2713 Articolo fuori listino aggiunto');
+  }
+
+  window.currentQuoteIdSaved = null;
+  closeCustomItemModal();
+  renderCart();
+  if(prevOverlay.classList.contains('open')) renderPrevBody();
+}
+
+if($('customItemBtn')) $('customItemBtn').addEventListener('click', function(){
+  openCustomItemModal(searchInput.value.trim(), null);
+});
+if($('emptyCustomBtn')) $('emptyCustomBtn').addEventListener('click', function(){
+  openCustomItemModal(this.getAttribute('data-termine') || '', null);
+});
+if($('customItemCloseBtn')) $('customItemCloseBtn').addEventListener('click', closeCustomItemModal);
+if($('customItemCancelBtn')) $('customItemCancelBtn').addEventListener('click', closeCustomItemModal);
+if($('customItemConfirmBtn')) $('customItemConfirmBtn').addEventListener('click', confirmCustomItem);
+if(customItemOverlay) customItemOverlay.addEventListener('click', function(e){
+  if(e.target === customItemOverlay) closeCustomItemModal();
+});
+['ciPrezzo','ciQty'].forEach(function(id){
+  if($(id)) $(id).addEventListener('input', aggiornaSubtotaleCustom);
+});
+if($('customItemModal')) $('customItemModal').addEventListener('keydown', function(e){
+  if(e.key === 'Enter'){ e.preventDefault(); confirmCustomItem(); }
 });
 
 // CART
@@ -510,27 +671,48 @@ function renderCart(){
     if(c.item.sconto > 0) discParts.push('-'+c.item.sconto+'%');
     if(c.extraDiscount > 0) discParts.push('extra -'+c.extraDiscount+'%');
     var discLine = discParts.length > 0 ? '<div class="cart-item-disc">Sc. '+discParts.join(' | ')+' (listino '+fp(c.item.prezzo)+')</div>' : '';
-    html+='<div class="cart-item">'
-      +'<div class="cart-item-top"><div class="cart-item-name">'+esc(c.item.desc)+'</div><button class="cart-item-remove" data-action="remove" data-idx="'+idx+'" title="Rimuovi">&times;</button></div>'
-      +'<div class="cart-item-cod">'+esc(c.item.cod)+'</div>'
+    var isCustom = !!c.item.custom;
+    // Una voce fuori listino non ha una riga nel listino su cui tornare a
+    // cliccare: l'unico modo per correggerla e' da qui.
+    var nameHtml = isCustom
+      ? '<div class="cart-item-name cart-item-editable" data-action="editcustom" data-idx="'+idx+'" title="Modifica questa voce">'+esc(c.item.desc)+'<span class="edit-hint">&#9998;</span></div>'
+      : '<div class="cart-item-name">'+esc(c.item.desc)+'</div>';
+    var codHtml = isCustom
+      ? '<div class="cart-item-cod"><span class="badge-fuorilistino">fuori listino</span>'+(c.item.cod?' '+esc(c.item.cod):'')+'</div>'
+      : '<div class="cart-item-cod">'+esc(c.item.cod)+'</div>';
+    var umHtml = c.item.um ? '<span class="cart-item-um">'+esc(c.item.um)+'</span>' : '';
+    html+='<div class="cart-item'+(isCustom?' is-custom':'')+'">'
+      +'<div class="cart-item-top">'+nameHtml+'<button class="cart-item-remove" data-action="remove" data-idx="'+idx+'" title="Rimuovi">&times;</button></div>'
+      +codHtml
       +discLine
       +'<div class="cart-item-bottom">'
       +'<div class="cart-item-qty">'
       +'<button data-action="dec" data-idx="'+idx+'">&minus;</button>'
       +'<input type="number" value="'+c.qty+'" min="1" step="0.01" data-action="setqty" data-idx="'+idx+'">'
       +'<button data-action="inc" data-idx="'+idx+'">+</button>'
-      +'</div>'
+      +'</div>'+umHtml
+      // Il prezzo applicato sotto il totale di riga: prima, per sapere a
+      // quanto stavi vendendo, dovevi riaprire il modale dell'articolo.
+      +'<div class="cart-item-money">'
       +'<div class="cart-item-total">\u20ac '+fp(sub)+'</div>'
+      +'<div class="cart-item-unit">\u20ac '+fp(unitNet)+(c.item.um?' / '+esc(c.item.um):' cad.')+'</div>'
+      +'</div>'
       +'</div></div>';
   });
   cartBody.innerHTML=html;updateTotals();
 }
 
 cartBody.addEventListener('click',function(e){
-  var t=e.target,a=t.getAttribute('data-action'),i=parseInt(t.getAttribute('data-idx'),10);
-  if(a==='remove'&&!isNaN(i)){cart.splice(i,1);window.currentQuoteIdSaved=null;renderCart();doSearch();showToast('Articolo rimosso')}
-  else if(a==='dec'&&!isNaN(i)){cart[i].qty=Math.max(1,cart[i].qty-1);window.currentQuoteIdSaved=null;renderCart()}
-  else if(a==='inc'&&!isNaN(i)){cart[i].qty++;window.currentQuoteIdSaved=null;renderCart()}
+  // closest e non e.target: il click puo' arrivare sull'icona matita dentro il
+  // nome, non sull'elemento che porta data-action.
+  var t=e.target.closest('[data-action]');
+  if(!t)return;
+  var a=t.getAttribute('data-action'),i=parseInt(t.getAttribute('data-idx'),10);
+  if(isNaN(i))return;
+  if(a==='remove'){cart.splice(i,1);window.currentQuoteIdSaved=null;renderCart();doSearch();showToast('Articolo rimosso')}
+  else if(a==='dec'){cart[i].qty=Math.max(1,cart[i].qty-1);window.currentQuoteIdSaved=null;renderCart()}
+  else if(a==='inc'){cart[i].qty++;window.currentQuoteIdSaved=null;renderCart()}
+  else if(a==='editcustom'){openCustomItemModal('',cart[i].item.uid)}
 });
 cartBody.addEventListener('change',function(e){
   var t=e.target;
@@ -603,9 +785,14 @@ function renderPrevBody() {
     if(c.item.sconto > 0) discParts.push('-'+c.item.sconto+'%');
     if(c.extraDiscount > 0) discParts.push('-'+c.extraDiscount+'%');
     var discTd = discParts.length > 0 ? discParts.join('<br>') : '';
-    rows+='<tr><td class="prev-cod">'+esc(c.item.cod)+'</td><td>'+esc(c.item.desc)
+    // Il marcatore "fuori listino" e' per l'operatore: .prev-fl sparisce nella
+    // stampa e nel PDF, dove al cliente serve solo la riga.
+    var codTd = c.item.custom
+      ? (c.item.cod ? esc(c.item.cod) : '<span class="prev-fl">fuori listino</span>')
+      : esc(c.item.cod);
+    rows+='<tr><td class="prev-cod">'+codTd+'</td><td>'+esc(c.item.desc)
       +'</td><td class="r">'+fp(c.item.prezzo)+'</td><td class="disc-cell" style="line-height:1.2;">'+discTd
-      +'</td><td class="r">'+fp(unitNet)+'</td><td class="r">'+c.qty
+      +'</td><td class="r">'+fp(unitNet)+'</td><td class="r">'+esc(qtyLabel(c))
       +'</td><td class="r">'+fp(sub)+'</td></tr>';
   });
   netto = ro2(netto);
@@ -626,7 +813,7 @@ function renderPrevBody() {
   
   if(globalDiscount > 0) {
     html += '<tr><td colspan="6" style="text-align:right;font-size:12px;color:var(--text2)">Totale prima dello sconto</td><td class="prev-total-val r" style="font-size:12px;color:var(--text2)">'+fp(totIvaInc)+'</td></tr>'
-      + '<tr><td colspan="6" style="text-align:right;font-weight:bold;color:var(--danger)">Sconto Arrotondamento (IVA inclusa)</td><td class="r" style="color:var(--danger);font-weight:bold;">- '+fp(globalDiscount)+'</td></tr>';
+      + '<tr><td colspan="6" style="text-align:right;font-weight:bold;color:var(--red)">Sconto Arrotondamento (IVA inclusa)</td><td class="r" style="color:var(--red);font-weight:bold;">- '+fp(globalDiscount)+'</td></tr>';
   }
   
   html += '<tr><td colspan="6" style="text-align:right">Totale Netto</td><td class="prev-total-val r">'+fp(finalNetto)+'</td></tr>'
@@ -636,10 +823,10 @@ function renderPrevBody() {
   $('prevBody').innerHTML=html;
 }
 
-function showPreventivo(){
+function showPreventivo(scontoCassa){
   if(!cart.length)return;
   if($('globalDiscountAbsolute')) {
-      $('globalDiscountAbsolute').value = "0,00";
+      $('globalDiscountAbsolute').value = fp(scontoCassa || 0);
   }
   renderPrevBody();
   prevOverlay.classList.add('open');
@@ -953,6 +1140,7 @@ $('prevPrintBtn').addEventListener('click', async function(){
       +'td{padding:8px 10px;font-size:12px;border-bottom:1px solid #eee}'
       +'tfoot td{border-top:2px solid #333;font-weight:bold;padding:10px}'
       +'.prev-cod{font-family:monospace;font-size:11px;color:#b45309}'
+      +'.prev-fl{display:none}'
       +'.prev-total-val{color:#16a34a;font-family:monospace;}';
     element.appendChild(style);
 
@@ -982,6 +1170,7 @@ $('prevPrintBtn').addEventListener('click', async function(){
       +'td.disc-cell{color:#e67700;font-family:monospace;font-size:11px;text-align:right}'
       +'tfoot td{border-top:2px solid #333;font-weight:bold;padding:10px}'
       +'.prev-cod{font-family:monospace;font-size:11px;color:#b45309}'
+      +'.prev-fl{display:none}'
       +'.prev-total-val{font-family:monospace;color:#16a34a}'
       +'</style></head><body>'
       +'<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:30px;">'
@@ -1023,8 +1212,9 @@ async function saveQuoteToCloud(type) {
            var sub = ro2(c.qty*(unitNet||0));
            netto += sub;
            return {
-               cod: c.item.cod, desc: c.item.desc, qty: c.qty, 
-               net: unitNet, subtotal: sub, prezzo: c.item.prezzo, sconto: c.item.sconto, extraDiscount: c.extraDiscount || 0
+               cod: c.item.cod || '', desc: c.item.desc, qty: c.qty, 
+               net: unitNet, subtotal: sub, prezzo: c.item.prezzo || 0, sconto: c.item.sconto || 0, extraDiscount: c.extraDiscount || 0,
+               custom: !!c.item.custom, um: c.item.um || ''
            };
         });
         
@@ -1094,7 +1284,7 @@ $('prevEmailBtn').addEventListener('click', async function() {
         if(c.extraDiscount > 0) discParts.push('-'+c.extraDiscount+'%');
         if(discParts.length > 0) discText = " (Sc. " + discParts.join('|') + ")";
         
-        bodyText += "- " + c.qty + "x " + c.item.desc + discText + " (E. " + fp(sub) + ")\n";
+        bodyText += "- " + qtyLabel(c) + " x " + c.item.desc + discText + " (E. " + fp(sub) + ")\n";
     });
     
     netto = ro2(netto);
@@ -1151,7 +1341,7 @@ $('prevWhatsappBtn').addEventListener('click', async function() {
         if(c.extraDiscount > 0) discParts.push('-'+c.extraDiscount+'%');
         if(discParts.length > 0) discText = " (_Sc. " + discParts.join('|') + "_)";
         
-        bodyText += "▪️ " + c.qty + "x " + c.item.desc + discText + " (*€ " + fp(sub) + "*)\n";
+        bodyText += "▪️ " + qtyLabel(c) + " x " + c.item.desc + discText + " (*€ " + fp(sub) + "*)\n";
     });
     
     netto = ro2(netto);
@@ -1236,7 +1426,7 @@ $('prevExportBtn').addEventListener('click',function(){
     
     ws_data.push([
       c.item.cod,
-      c.item.desc,
+      c.item.desc + (c.item.um ? ' (' + c.item.um + ')' : ''),
       listino,
       sc1,
       sc2,
@@ -1275,11 +1465,12 @@ function showToast(msg){toastEl.textContent=msg;toastEl.classList.add('show');se
 
 document.addEventListener('keydown',function(e){
   if(e.key==='Escape'){
-    if(prevOverlay.classList.contains('open'))closePrev();
+    if(customItemOverlay && customItemOverlay.classList.contains('open'))closeCustomItemModal();
+    else if(prevOverlay.classList.contains('open'))closePrev();
     else if(addOverlay.classList.contains('open'))closeAddModal();
     else{searchInput.value='';clearBtn.classList.remove('visible');doSearch();searchInput.focus()}
   }
-  if(e.key==='Enter'&&addOverlay.classList.contains('open'))$('mAddBtn').click();
+  if(e.key==='Enter'&&addOverlay.classList.contains('open')&&!(customItemOverlay&&customItemOverlay.classList.contains('open')))$('mAddBtn').click();
 });
 
 // Gestione PWA Service Worker
@@ -1313,134 +1504,203 @@ if(btnStorico) btnStorico.addEventListener('click', openStorico);
 if(storicoCloseBtn) storicoCloseBtn.addEventListener('click', closeStorico);
 if(btnClearStorico) btnClearStorico.addEventListener('click', function() {
     sfNum.value=''; sfDateFrom.value=''; sfDateTo.value=''; sfCustomer.value=''; sfItem.value='';
-    loadStorico();
+    loadStorico(false);
 });
-if(btnSearchStorico) btnSearchStorico.addEventListener('click', loadStorico);
+if(btnSearchStorico) btnSearchStorico.addEventListener('click', function(){ loadStorico(false); });
+if($('btnStoricoAltri')) $('btnStoricoAltri').addEventListener('click', function(){ loadStorico(true); });
+// I filtri scritti a mano agiscono su quel che e' gia' stato scaricato: si
+// applicano mentre si digita, senza richiedere niente al server.
+['sfNum','sfCustomer','sfItem'].forEach(function(id){
+    if($(id)) $(id).addEventListener('input', function(){ if(STORICO.length) renderStorico(); });
+});
 
 function openStorico() {
     if(storicoOverlay) storicoOverlay.classList.add('open');
-    loadStorico();
+    loadStorico(false);
 }
 
 function closeStorico() {
     if(storicoOverlay) storicoOverlay.classList.remove('open');
 }
 
-async function loadStorico() {
-    if(!db) { alert("Database non configurato."); return; }
-    
+// Lo storico chiede al server solo la finestra di date richiesta e ne scarica
+// una pagina per volta. Prima scaricava gli ultimi 200 preventivi e filtrava
+// nel browser: passata quella soglia, i piu' vecchi diventavano irraggiungibili
+// qualunque cosa si scrivesse nei filtri.
+//
+// L'intervallo di date usa dateIso, che e' una stringa ISO: confrontata come
+// testo ordina come una data. Filtro e ordinamento cadono sullo stesso campo,
+// quindi Firestore non chiede nessun indice composto da creare a mano.
+var PAGINA_STORICO = 60;
+var storicoUltimoDoc = null;   // cursore per "carica altri"
+var storicoFine = false;       // il server non ha altro da dare
+var STORICO = [];              // i preventivi caricati finora
+
+function filtriStorico() {
+    return {
+        num: sfNum.value.trim().toLowerCase(),
+        cliente: sfCustomer.value.trim().toLowerCase(),
+        articolo: sfItem.value.trim().toLowerCase(),
+        da: sfDateFrom.value || '',
+        a: sfDateTo.value || ''
+    };
+}
+
+function costruisciQueryStorico(f) {
+    var q = db.collection('quotes');
+    if(f.da) q = q.where('dateIso', '>=', f.da + 'T00:00:00.000Z');
+    if(f.a)  q = q.where('dateIso', '<=', f.a + 'T23:59:59.999Z');
+    return q.orderBy('dateIso', 'desc').limit(PAGINA_STORICO);
+}
+
+// Numero, cliente e articolo restano a carico del browser: sono ricerche per
+// sottostringa, e Firestore non le sa fare. Agiscono su cio' che e' gia'
+// stato scaricato, per questo il conteggio in fondo dice sempre quanti
+// documenti sono stati esaminati.
+function applicaFiltriLocali(elenco, f) {
+    return elenco.filter(function(q){
+        if(f.num && (q.quoteId||'').toLowerCase().indexOf(f.num) === -1) return false;
+        if(f.cliente) {
+            var c = q.customer || {};
+            if((c.ragione||'').toLowerCase().indexOf(f.cliente) === -1 &&
+               (c.piva||'').toLowerCase().indexOf(f.cliente) === -1) return false;
+        }
+        if(f.articolo) {
+            var trovato = (q.items||[]).some(function(it){
+                return (it.desc||'').toLowerCase().indexOf(f.articolo) !== -1 ||
+                       (it.cod||'').toLowerCase().indexOf(f.articolo) !== -1;
+            });
+            if(!trovato) return false;
+        }
+        return true;
+    });
+}
+
+function totaleDocumento(q) {
+    // netTotal e' gia' al netto dello sconto di cassa: l'IVA ci va sopra.
+    return ro2((q.netTotal || 0) * 1.22);
+}
+
+function renderStorico() {
+    var f = filtriStorico();
+    var righe = applicaFiltriLocali(STORICO, f);
+
+    if(!storicoListBody) return;
+
+    if(righe.length === 0) {
+        storicoListBody.innerHTML = '';
+        $('storicoEmpty').style.display = 'block';
+    } else {
+        $('storicoEmpty').style.display = 'none';
+        storicoListBody.innerHTML = righe.map(function(q){
+            var d = new Date(q.dateIso);
+            var quando = d.toLocaleDateString('it-IT') + ' ' +
+                         d.toLocaleTimeString('it-IT', {hour:'2-digit',minute:'2-digit'});
+            var cliente = q.customer && q.customer.ragione ? String(q.customer.ragione) : 'Nessun cliente';
+            var piva = q.customer && q.customer.piva ? String(q.customer.piva) : '';
+            var articoli = (q.items||[]).map(function(it){
+                return it.qty + (it.um ? ' '+it.um : '') + ' × ' + (it.desc || it.cod);
+            }).join(', ');
+            var fuoriListino = (q.items||[]).some(function(it){ return it.custom; })
+                ? ' <span class="badge-fuorilistino">fuori listino</span>' : '';
+            return '<tr class="storico-row">' +
+                '<td><div class="storico-cod">' + esc(q.quoteId) + '</div><div class="storico-date">' + esc(quando) + '</div></td>' +
+                '<td><div class="storico-customer">' + esc(cliente) + '</div>' +
+                     (piva ? '<div class="storico-piva">P.IVA: '+esc(piva)+'</div>' : '') + '</td>' +
+                '<td><div class="storico-items" title="'+esc(articoli)+'">' + esc(articoli) + fuoriListino + '</div></td>' +
+                '<td style="text-align:right"><div class="storico-total">€ ' + fp(totaleDocumento(q)) + '</div></td>' +
+                '<td style="text-align:center"><button class="btn btn-secondary storico-riapri" data-quote="'+esc(q.quoteId)+'">Riapri ⟳</button></td>' +
+                '</tr>';
+        }).join('');
+    }
+
+    var conteggio = $('storicoConteggio');
+    if(conteggio) {
+        conteggio.textContent = righe.length === STORICO.length
+            ? righe.length + ' preventivi'
+            : righe.length + ' di ' + STORICO.length + ' esaminati';
+    }
+    var altri = $('btnStoricoAltri');
+    if(altri) altri.style.display = storicoFine ? 'none' : 'inline-flex';
+}
+
+async function loadStorico(continua) {
+    if(!db) { alert('Database non configurato.'); return; }
+
+    if(!continua) { STORICO = []; storicoUltimoDoc = null; storicoFine = false; }
+
     $('storicoLoading').style.display = 'block';
     if($('storicoEmpty')) $('storicoEmpty').style.display = 'none';
-    if(storicoListBody) storicoListBody.innerHTML = '';
-    
+
     try {
-        var quotesRef = db.collection('quotes');
-        var query = quotesRef.orderBy('timestamp', 'desc');
-        
-        var snapshot = await query.limit(200).get();
-        var results = [];
-        
-        snapshot.forEach(function(doc){ results.push(doc.data()); });
-        
-        var nQuery = sfNum.value.trim().toLowerCase();
-        var cQuery = sfCustomer.value.trim().toLowerCase();
-        var iQuery = sfItem.value.trim().toLowerCase();
-        var dFrom = sfDateFrom.value ? new Date(sfDateFrom.value) : null;
-        var dTo = sfDateTo.value ? new Date(sfDateTo.value) : null;
-        if(dTo) dTo.setHours(23,59,59,999);
-        
-        var filtered = results.filter(function(q){
-            if(nQuery && q.quoteId.toLowerCase().indexOf(nQuery)===-1) return false;
-            if(cQuery) {
-                var cMatch = false;
-                if(q.customer) {
-                   if((q.customer.ragione||'').toLowerCase().includes(cQuery)) cMatch = true;
-                   if((q.customer.piva||'').toLowerCase().includes(cQuery)) cMatch = true;
-                }
-                if(!cMatch) return false;
-            }
-            if(dFrom || dTo) {
-                var qDate = new Date(q.dateIso);
-                if(dFrom && qDate < dFrom) return false;
-                if(dTo && qDate > dTo) return false;
-            }
-            if(iQuery) {
-                var iMatch = false;
-                if(q.items) {
-                    for(var k=0; k<q.items.length; k++) {
-                       if((q.items[k].desc||'').toLowerCase().includes(iQuery) || (q.items[k].cod||'').toLowerCase().includes(iQuery)) {
-                           iMatch = true; break;
-                       }
-                    }
-                }
-                if(!iMatch) return false;
-            }
-            return true;
-        });
-        
-        if(!storicoListBody) return;
-        
-        if(filtered.length === 0) {
-            $('storicoEmpty').style.display = 'block';
-        } else {
-            var html = '';
-            filtered.forEach(function(q){
-                var dataObj = new Date(q.dateIso);
-                var dataStr = dataObj.toLocaleDateString('it-IT') + ' ' + dataObj.toLocaleTimeString('it-IT', {hour:'2-digit',minute:'2-digit'});
-                var custName = q.customer ? String(q.customer.ragione) : 'Nessun cliente';
-                var custPiva = q.customer && q.customer.piva ? String(q.customer.piva) : '';
-                
-                var itemsStr = '';
-                if(q.items && q.items.length) {
-                    itemsStr = q.items.map(function(it){ return it.qty + 'x ' + (it.desc || it.cod) }).join(', ');
-                }
-                
-                window['_szQuote_' + q.quoteId] = q;
-                
-                html += '<tr class="storico-row">' +
-                        '<td><div class="storico-cod">' + q.quoteId + '</div><div class="storico-date">' + dataStr + '</div></td>' +
-                        '<td><div class="storico-customer">' + esc(custName) + '</div>' + (custPiva ? '<div class="storico-piva">P.IVA: '+esc(custPiva)+'</div>' : '') + '</td>' +
-                        '<td><div class="storico-items" title="'+esc(itemsStr)+'">' + esc(itemsStr) + '</div></td>' +
-                        '<td style="text-align:right"><div class="storico-total">\u20ac ' + fp(q.netTotal * 1.22) + '</div></td>' +
-                        '<td style="text-align:center"><button class="btn btn-secondary" onclick="restoreQuote(\''+q.quoteId+'\')" style="padding:6px 12px; font-size:11px; width:100%;">Riapri \u27F3</button></td>' +
-                        '</tr>';
-            });
-            storicoListBody.innerHTML = html;
-        }
-        
+        var f = filtriStorico();
+        var q = costruisciQueryStorico(f);
+        if(continua && storicoUltimoDoc) q = q.startAfter(storicoUltimoDoc);
+
+        var snap = await q.get();
+        snap.forEach(function(doc){ STORICO.push(doc.data()); });
+
+        storicoUltimoDoc = snap.docs.length ? snap.docs[snap.docs.length - 1] : storicoUltimoDoc;
+        if(snap.docs.length < PAGINA_STORICO) storicoFine = true;
+
+        renderStorico();
     } catch(err) {
         console.error(err);
-        if($('storicoEmpty')){ $('storicoEmpty').innerHTML = "Errore lettura DB: " + err.message; $('storicoEmpty').style.display = 'block'; }
+        if($('storicoEmpty')) {
+            $('storicoEmpty').textContent = 'Errore lettura archivio: ' + err.message;
+            $('storicoEmpty').style.display = 'block';
+        }
     } finally {
         if($('storicoLoading')) $('storicoLoading').style.display = 'none';
     }
 }
 
-window.restoreQuote = function(quoteId) {
-    var q = window['_szQuote_' + quoteId];
+// Delega: prima ogni riga portava un onclick con il numero interpolato
+// nell'HTML e ogni preventivo restava appeso a window['_szQuote_...'].
+if(storicoListBody) storicoListBody.addEventListener('click', function(e){
+    var b = e.target.closest('.storico-riapri');
+    if(!b) return;
+    var id = b.getAttribute('data-quote');
+    var q = STORICO.filter(function(x){ return x.quoteId === id; })[0];
+    if(q) riapriPreventivo(q);
+});
+
+function riapriPreventivo(q) {
     if(!q) return;
-    
-    if(cart.length > 0) {
-        if(!confirm("Questo sostituira' il preventivo attualmente in corso. Vuoi procedere?")) return;
-    }
-    
+
+    if(cart.length > 0 && !confirm("Questo sostituira' il preventivo attualmente in corso. Vuoi procedere?")) return;
+
     cart = [];
     q.items.forEach(function(it){
-        var matched = ITEMS.filter(function(x){ return x.cod === it.cod })[0];
-        var itemObj = matched ? matched : {
-            cod: it.cod, desc: it.desc, grp: it.grp, forn: it.forn,
-            prezzo: it.prezzo || 0, netto: it.net || 0, sconto: it.sconto || 0, net: it.net || 0
-        };
-        cart.push({ item: itemObj, qty: it.qty });
+        var itemObj;
+        if(it.custom){
+            // Fuori listino: non c'e' niente da ritrovare in ITEMS, la riga si
+            // ricostruisce dal documento salvato. Nuovo uid, perche' la vecchia
+            // chiave apparteneva alla sessione in cui fu creata.
+            itemObj = {
+                uid: 'FL-' + Date.now() + '-' + (++customItemSeq),
+                custom: true,
+                cod: it.cod || '', desc: it.desc || '', um: it.um || '',
+                prezzo: it.prezzo || it.net || 0, sconto: 0, net: it.net || 0,
+                grp: '', forn: ''
+            };
+        } else {
+            var matched = ITEMS.filter(function(x){ return x.cod === it.cod })[0];
+            itemObj = matched ? matched : {
+                cod: it.cod, desc: it.desc, grp: it.grp || '', forn: it.forn || '',
+                prezzo: it.prezzo || 0, sconto: it.sconto || 0, net: it.net || 0
+            };
+        }
+        // extraDiscount andava perso alla riapertura: il preventivo ricaricato
+        // tornava al prezzo pieno di riga.
+        cart.push({ item: itemObj, qty: it.qty, extraDiscount: it.extraDiscount || 0 });
     });
-    
+
     currentCustomer = q.customer;
     if(currentCustomer && $('customerSearch')) {
         updateSelectedCustomerUI();
-        
         if($('quoteTel')) $('quoteTel').value = currentCustomer.tel || '';
         if($('quoteCantiere')) $('quoteCantiere').value = currentCustomer.cantiere || '';
-        
         $('selectedCustomerBox').style.display = 'block';
         if($('quoteContactDetails')) $('quoteContactDetails').style.display = 'block';
         $('customerSearch').parentElement.style.display = 'none';
@@ -1451,16 +1711,22 @@ window.restoreQuote = function(quoteId) {
         if($('quoteCantiere')) $('quoteCantiere').value = '';
         $('customerSearch').parentElement.style.display = 'block';
     }
-    
+
     window.currentQuoteIdSaved = q.quoteId;
-    
+
     renderCart();
     doSearch();
     closeStorico();
-    
-    // Open print preview automatically to proceed
-    showPreventivo();
-    showToast("Preventivo " + q.quoteId + " riaperto!");
+
+    // Anche lo sconto di cassa torna: senza, un documento riemesso aveva un
+    // totale diverso dall'originale, e nessuno se ne accorgeva.
+    showPreventivo(q.globalDiscount || 0);
+    showToast('Preventivo ' + q.quoteId + ' riaperto');
+}
+
+// Resta raggiungibile dal vecchio nome, nel caso qualcosa lo richiami.
+window.restoreQuote = function(quoteId) {
+    riapriPreventivo(STORICO.filter(function(x){ return x.quoteId === quoteId; })[0]);
 };
 
 if($('quoteCantiere')) {

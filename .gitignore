@@ -6,3 +6,11 @@ Magazzino_App_Mobile.html
 
 # Sorgenti dati aziendali usati dal build
 *.xlsx
+
+# Banco di prova locale generato a mano: apre l'app senza Firebase e senza
+# login, con un listino finto in localStorage. Serve solo per provare le
+# modifiche grafiche in locale.
+_prova.html
+
+# Configurazione del server locale di sviluppo.
+.claude/

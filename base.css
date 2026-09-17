@@ -1,0 +1,402 @@
+/* ===========================================================================
+   BASE ANTIGRAVITY v2 — componenti condivisi
+   ===========================================================================
+
+   Il secondo strato del tema. tema.css porta i colori; questo porta le FORME:
+   bottoni, campi, tabelle, modali, pastiglie, testata. E' quello che fa
+   sembrare quattro app la stessa famiglia — due app con gli stessi colori ma
+   bottoni diversi restano due app diverse.
+
+   Si carica dopo tema.css e prima del foglio dell'app:
+
+       <link rel="stylesheet" href="tema.css">
+       <link rel="stylesheet" href="base.css">
+       <link rel="stylesheet" href="styles.css">
+
+   L'app sopra puo' aggiungere, non ridefinire. Se un componente serve a due
+   app, il suo posto e' qui.
+
+   NOMI: i componenti generici hanno il prefisso "ag-". Quattro basi di codice
+   nate separate si calpestano i nomi: in magazzino-scorte ".campo" marca le
+   colonne modificabili di una tabella, non un input. Fanno eccezione i bottoni,
+   che si chiamano ".btn" in tre app su quattro e restano cosi'; ".bottone" e'
+   il dialetto di magazzino-scorte, tenuto come alias per non riscriverne il
+   markup.
+   =========================================================================== */
+
+/* --- IMPIANTO ----------------------------------------------------------- */
+
+html, body {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+h1 { font-size: var(--fs-xl); }
+h2 { font-size: var(--fs-lg); }
+h3 { font-size: var(--fs-base); }
+
+/* I dati vanno in monospaziato: prezzi, codici, quantita', partite IVA. */
+.ag-dati, .ag-mono { font-family: var(--font-dati); font-variant-numeric: tabular-nums; }
+
+/* --- TESTATA ------------------------------------------------------------
+   La stessa barra in cima a tutte e quattro. E' la prima cosa che si vede e
+   quella che dice "e' la stessa famiglia" prima ancora di leggere. */
+
+.ag-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.ag-logo {
+  width: 36px; height: 36px; flex-shrink: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: var(--accent-ink);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: var(--fs-sm); letter-spacing: -0.02em;
+}
+
+/* Il titolo dice sempre due cose nello stesso ordine: il programma, poi il
+   modulo. "Il Magazzino Edile · Preventivi". Prima ogni app annunciava un
+   prodotto diverso — "Antigravity Ordini", "Riconcilia", "Listino Prezzi
+   Netto" — e sembravano quattro acquisti separati. */
+.ag-titolo { min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ag-titolo h1 {
+  font-size: var(--fs-lg); line-height: 1.2; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ag-titolo .ag-modulo {
+  display: inline-flex; align-items: baseline; gap: 8px;
+  font-size: var(--fs-lg); font-weight: 600; color: var(--text2);
+  white-space: nowrap;
+}
+.ag-titolo .ag-modulo::before { content: '·'; color: var(--text3); font-weight: 400; }
+.ag-titolo .ag-versione {
+  font-family: var(--font-dati); font-size: var(--fs-micro);
+  color: var(--text3); font-weight: 500;
+}
+/* La riga di servizio sotto il titolo: utente, sede, stato. */
+.ag-sottotitolo {
+  width: 100%; margin: 2px 0 0;
+  font-size: var(--fs-micro); color: var(--text3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+@media (max-width: 560px) {
+  .ag-titolo h1 { font-size: var(--fs-base); }
+  .ag-titolo .ag-modulo { font-size: var(--fs-base); }
+  .ag-titolo .ag-versione { display: none; }
+}
+
+.ag-azioni { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+/* --- NAVIGAZIONE --------------------------------------------------------
+   La stessa barra a linguette in tutte e quattro, subito sotto la testata.
+   Prima ogni app faceva a modo suo: magazzino-gestionale non aveva menu,
+   magazzino-scorte una barra orizzontale, controllo-ddt una colonna a sinistra.
+   Tre schemi diversi bastavano a far sembrare tre programmi diversi.
+
+   Orizzontale e non laterale perche' su tablet e telefono la colonna mangia
+   meta' schermo, e queste app si usano in magazzino. */
+
+.ag-nav {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 0 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* Vale sia per <a> (scorte usa react-router) sia per <button> e <li>
+   (le app in JavaScript semplice cambiano vista da sole). */
+.ag-nav a,
+.ag-nav .ag-nav-voce {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 13px;
+  border: 0;
+  background: none;
+  color: var(--text2);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  /* Il bordo c'e' sempre, trasparente: cosi' la voce non si sposta di 2px
+     quando diventa attiva. */
+  border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s, background .15s;
+}
+
+.ag-nav a:hover,
+.ag-nav .ag-nav-voce:hover:not(:disabled):not(.disattiva) {
+  color: var(--text);
+  background: var(--surface2);
+}
+
+.ag-nav a.active,
+.ag-nav a[aria-current='page'],
+.ag-nav .ag-nav-voce.attiva {
+  color: var(--accent-text);
+  border-bottom-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.ag-nav .ag-nav-voce:disabled,
+.ag-nav .ag-nav-voce.disattiva {
+  opacity: .45;
+  cursor: default;
+}
+
+/* Etichetta che separa i gruppi di voci: in magazzino-scorte il menu e' lungo
+   e senza stacchi diventa un muro. */
+.ag-nav-gruppo {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px 0 16px;
+  margin-left: 4px;
+  border-left: 1px solid var(--border);
+  color: var(--text3);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  white-space: nowrap;
+}
+.ag-nav-gruppo:first-child { border-left: 0; margin-left: 0; padding-left: 0; }
+
+/* Contatore accanto a una voce (es. "Anomalie 3"). */
+.ag-nav-conta {
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface3);
+  color: var(--text2);
+  font-family: var(--font-dati);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+.ag-nav .attiva .ag-nav-conta,
+.ag-nav a.active .ag-nav-conta { background: var(--accent); color: var(--accent-ink); }
+.ag-nav-conta.allarme { background: var(--red-bg); color: var(--red); }
+
+@media (max-width: 768px) {
+  .ag-nav {
+    padding: 0 10px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .ag-nav::-webkit-scrollbar { display: none; }
+  .ag-nav-gruppo { display: none; }  /* su telefono lo stacco non serve, ruba spazio */
+}
+
+/* --- BOTTONI ------------------------------------------------------------ */
+
+.btn,
+.bottone {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 9px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--surface3);
+  color: var(--text2);
+  border-color: var(--border);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .15s ease-in-out, border-color .15s ease-in-out, color .15s ease-in-out;
+}
+.btn:hover:not(:disabled),
+.bottone:hover:not(:disabled) { background: var(--border); color: var(--text); }
+.btn:disabled,
+.bottone:disabled { opacity: .55; cursor: default; }
+
+.btn-primary,
+.bottone.principale { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.btn-primary:hover:not(:disabled),
+.bottone.principale:hover:not(:disabled) { background: var(--accent2); color: var(--accent-ink); }
+
+.btn-danger { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
+.btn-danger:hover:not(:disabled) { background: var(--red-bg); border-color: var(--red); color: var(--red); }
+
+.btn-ghost { background: transparent; border-color: transparent; color: var(--text2); }
+.btn-ghost:hover:not(:disabled) { background: var(--surface2); color: var(--text); }
+
+/* Alias per il markup gia' scritto. .btn-secondary e' l'aspetto di riposo del
+   bottone, quindi non aggiunge niente: esiste perche' tre app lo scrivono. */
+.btn-secondary { /* uguale a .btn */ }
+.btn-success { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+.btn-success:hover:not(:disabled) { background: var(--green-bg); border-color: var(--green); }
+
+.btn-sm,
+.bottone.piccolo { padding: 6px 12px; font-size: var(--fs-micro); }
+.btn-lg { padding: 13px 22px; font-size: var(--fs-base); }
+
+/* Quadrato, per le sole icone: senza, un flex lo stira. */
+.btn-icona { flex: 0 0 auto; width: 38px; height: 38px; padding: 0; font-size: var(--fs-base); }
+
+/* --- CAMPI -------------------------------------------------------------- */
+
+.ag-campo,
+input[type="text"].ag-campo, input[type="email"].ag-campo, input[type="password"].ag-campo,
+input[type="number"].ag-campo, input[type="date"].ag-campo, select.ag-campo, textarea.ag-campo {
+  width: 100%;
+  padding: 10px 13px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.ag-campo:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+.ag-campo.ag-dati { font-family: var(--font-dati); font-weight: 600; }
+
+.ag-etichetta {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  color: var(--text2);
+}
+
+/* --- PASTIGLIE ---------------------------------------------------------- */
+
+.ag-pastiglia {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text2);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: .3px;
+  white-space: nowrap;
+}
+.pastiglia-verde   { background: var(--green-bg);  color: var(--green);  border-color: var(--green-border); }
+.pastiglia-rossa   { background: var(--red-bg);    color: var(--red);    border-color: var(--red-border); }
+.pastiglia-arancio { background: var(--orange-bg); color: var(--orange); border-color: var(--orange-border); }
+.pastiglia-blu     { background: var(--blue-bg);   color: var(--blue);   border-color: var(--blue-border); }
+.pastiglia-ambra   { background: var(--accent-bg); color: var(--accent-text); border-color: var(--accent-border); }
+
+/* --- CARD --------------------------------------------------------------- */
+
+.ag-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+
+/* --- TABELLE ------------------------------------------------------------ */
+
+.ag-tabella-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: auto;
+}
+
+.ag-tabella { width: 100%; border-collapse: collapse; }
+
+.ag-tabella thead th {
+  position: sticky; top: 0; z-index: 2;
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  color: var(--text3);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  white-space: nowrap;
+}
+.ag-tabella thead th.r, .ag-tabella td.r { text-align: right; }
+
+.ag-tabella tbody td {
+  padding: 10px 12px;
+  font-size: var(--fs-sm);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.ag-tabella tbody tr:last-child td { border-bottom: 0; }
+.ag-tabella tbody tr.cliccabile { cursor: pointer; }
+.ag-tabella tbody tr.cliccabile:hover { background: var(--accent-bg); }
+
+/* I numeri incolonnati: monospaziato e cifre di larghezza uguale. */
+.ag-tabella td.r, .ag-tabella td.ag-dati { font-family: var(--font-dati); font-variant-numeric: tabular-nums; }
+
+/* --- MODALI ------------------------------------------------------------- */
+
+.ag-velo {
+  position: fixed; inset: 0; z-index: 100;
+  display: none; align-items: center; justify-content: center;
+  padding: 24px;
+  background: var(--overlay-veil);
+  backdrop-filter: blur(4px);
+}
+.ag-velo.aperto { display: flex; }
+
+.ag-finestra {
+  width: 100%; max-width: 480px;
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  animation: ag-sali .2s ease;
+}
+@keyframes ag-sali { from { transform: translateY(14px); opacity: 0 } to { transform: none; opacity: 1 } }
+
+/* --- STATO VUOTO -------------------------------------------------------- */
+
+.ag-vuoto {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 48px 24px; text-align: center;
+  color: var(--text3);
+}
+.ag-vuoto-icona { font-size: 40px; opacity: .35; }
+.ag-vuoto-testo { font-size: var(--fs-base); }
+
+/* --- STAMPA --------------------------------------------------------------
+   Testata e menu non vanno sulla carta: un modulo di conteggio o un preventivo
+   stampato non ha bisogno del nome del programma ne' delle linguette. Sta qui
+   e non nelle singole app perche' vale per tutte e quattro. */
+@media print {
+  .ag-header,
+  .ag-nav { display: none !important; }
+}

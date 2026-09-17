@@ -4,14 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#f2f4f8" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0f1117" media="(prefers-color-scheme: dark)">
     <meta name="apple-mobile-web-app-title" content="Magazzino">
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.json">
-    <title>Il Magazzino Edile — POS & Preventivi</title>
+    <title>Il Magazzino Edile — Preventivi</title>
     <!-- Fonts from the beautiful new design -->
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="tema.css">
+    <link rel="stylesheet" href="base.css">
     <link rel="stylesheet" href="styles.css">
+    <!-- Prima che la pagina si disegni, altrimenti compare un lampo col tema
+         sbagliato a ogni avvio. -->
+    <script src="tema.js"></script>
 </head>
 <body>
 
@@ -29,17 +36,27 @@
 
 <!-- MAIN APP (Hidden until data is ready) -->
 <div class="app" id="appContainer" style="display: none;">
-  <div class="catalog">
-    <div class="header">
-      <div class="logo">ME</div>
-      <div class="header-text">
-        <h1>Listino Prezzi Netto</h1>
-        <p>Il Magazzino Edile S.r.l. <span class="app-version" style="opacity:0.6; font-size:10px; margin-left: 6px; font-family:'JetBrains Mono',monospace;">v2.2.0</span></p>
-      </div>
-      <button class="btn btn-secondary" id="btnStorico" style="margin-left: auto; margin-right: 10px; background: var(--surface2); border: 1px solid var(--border);">📜 Storico Preventivi</button>
-      <button class="btn btn-secondary reload-btn" id="btnReloadListino">⬇️ Forza Sync Cloud</button>
+  <header class="ag-header">
+    <div class="ag-logo">ME</div>
+    <div class="ag-titolo">
+      <h1>Il Magazzino Edile</h1>
+      <span class="ag-modulo">Preventivi<span class="ag-versione">v2.6.0</span></span>
     </div>
-    
+    <div class="ag-azioni">
+      <button class="btn" id="btnReloadListino">&#11015;&#65039; Sincronizza</button>
+      <button class="btn btn-icona" id="btnTema" title="Cambia tema">&#127769;</button>
+    </div>
+  </header>
+
+  <nav class="ag-nav">
+    <button class="ag-nav-voce attiva">&#128203; Listino</button>
+    <button class="ag-nav-voce" id="btnStorico">&#128220; Storico preventivi</button>
+  </nav>
+
+  <!-- Listino e carrello si affiancano qui sotto: la testata sta sopra a
+       tutta larghezza, come nelle altre app del magazzino. -->
+  <div class="app-corpo">
+  <div class="catalog">
     <div class="search-wrap">
       <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input class="search-input" id="searchInput" type="text" placeholder="Cerca articolo per nome, codice o fornitore..." autofocus>
@@ -55,6 +72,7 @@
         <option value="">Tutti i Fornitori</option>
       </select>
       <button id="resetFiltersBtn" class="btn btn-secondary" style="flex: 0 auto; padding: 8px 12px; font-size: 11px;">&#10227; Reset Filtri</button>
+      <button id="customItemBtn" class="btn btn-secondary btn-fuorilistino" style="flex: 0 auto; padding: 8px 12px; font-size: 11px;" title="Aggiungi una voce una tantum, non presente in anagrafica">&#10010; Fuori listino</button>
     </div>
     <div class="results-info" id="resultsInfo"></div>
     
@@ -69,6 +87,7 @@
       <div class="empty" id="emptyState">
         <div class="empty-icon">&#128269;</div>
         <div class="empty-text">Digita per cercare nel listino</div>
+        <button class="btn btn-secondary btn-fuorilistino" id="emptyCustomBtn" style="display:none; flex:0 0 auto; padding:10px 18px; font-size:12px;">&#10010; Aggiungi come articolo fuori listino</button>
       </div>
     </div>
   </div>
@@ -93,7 +112,8 @@
       </div>
     </div>
   </div>
-  
+  </div>
+
   <!-- MOBILE FAB -->
   <button id="mobileCartBtn" class="mobile-fab" style="display:none;">
     &#128196; Preventivo <span class="fab-badge" id="fabBadge">0</span>
@@ -148,6 +168,58 @@
   </div>
 </div>
 
+<!-- ARTICOLO FUORI LISTINO -->
+<div class="overlay" id="customItemOverlay" style="z-index: 1040;">
+  <div class="modal" id="customItemModal">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+      <h2 style="font-size:18px;">&#10010; Articolo fuori listino</h2>
+      <button class="modal-close" id="customItemCloseBtn" style="position:static; float:none; margin:0;">&times;</button>
+    </div>
+    <p style="font-size:12px; color:var(--text3); line-height:1.5; margin-bottom:18px;">
+      Una voce una tantum che non esiste in anagrafica. Vale solo per questo preventivo:
+      non viene aggiunta al listino.
+    </p>
+
+    <div class="ci-grid">
+      <div class="ci-full">
+        <label class="modal-qty-label" for="ciDesc">Descrizione *</label>
+        <input type="text" id="ciDesc" class="search-input ci-input" placeholder="Es. Nolo piattaforma aerea, 1 giorno" autocomplete="off">
+      </div>
+      <div>
+        <label class="modal-qty-label" for="ciCod">Codice (facoltativo)</label>
+        <input type="text" id="ciCod" class="search-input ci-input ci-mono" placeholder="&mdash;" autocomplete="off">
+      </div>
+      <div>
+        <label class="modal-qty-label" for="ciUm">Unit&agrave; di misura</label>
+        <input type="text" id="ciUm" class="search-input ci-input" list="listUm" placeholder="pz" autocomplete="off">
+        <datalist id="listUm">
+          <option value="pz"></option><option value="mq"></option><option value="mc"></option>
+          <option value="ml"></option><option value="kg"></option><option value="q.li"></option>
+          <option value="lt"></option><option value="h"></option><option value="a corpo"></option>
+        </datalist>
+      </div>
+      <div>
+        <label class="modal-qty-label" for="ciPrezzo">Prezzo unitario netto &euro; *</label>
+        <input type="text" inputmode="decimal" id="ciPrezzo" class="search-input ci-input ci-mono" placeholder="0,00" autocomplete="off">
+      </div>
+      <div>
+        <label class="modal-qty-label" for="ciQty">Quantit&agrave;</label>
+        <input type="text" inputmode="decimal" id="ciQty" class="search-input ci-input ci-mono" value="1" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="modal-subtotal">
+      <span class="modal-subtotal-label">Subtotale</span>
+      <span class="modal-subtotal-value" id="ciSubtotal">&euro; 0,00</span>
+    </div>
+
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-cancel" id="customItemCancelBtn">Annulla</button>
+      <button class="modal-btn modal-btn-add" id="customItemConfirmBtn">+ Aggiungi al preventivo</button>
+    </div>
+  </div>
+</div>
+
 <!-- PREVENTIVO -->
 <div class="print-overlay" id="prevOverlay">
   <div class="print-modal" id="prevModal">
@@ -160,7 +232,7 @@
       <div style="position:relative;">
         <input type="text" id="customerSearch" class="search-input" style="padding:10px 14px; font-size:13px;" placeholder="Inizia a digitare la Ragione Sociale..." autocomplete="off">
         <button id="btnNewCustomer" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:var(--surface3); border:1px solid var(--border); color:var(--accent); padding:4px 8px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">+ NUOVO</button>
-        <div id="customerResults" style="position:absolute; top:100%; left:0; right:0; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm); z-index:10; max-height:220px; overflow-y:auto; display:none; box-shadow:0 12px 24px rgba(0,0,0,0.5);"></div>
+        <div id="customerResults" style="position:absolute; top:100%; left:0; right:0; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm); z-index:10; max-height:220px; overflow-y:auto; display:none; box-shadow:var(--shadow-lg);"></div>
       </div>
       <div id="selectedCustomerBox" style="display:none; padding:12px; background:var(--accent-bg); border:1px solid var(--accent); border-radius:var(--radius-sm); margin-top:10px;">
          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
@@ -200,9 +272,9 @@
     <div class="print-footer">
       <button class="btn btn-secondary" id="prevCloseBtnFoot">Chiudi</button>
       <button class="btn btn-secondary" id="prevExportBtn">&#128202; Esporta Excel</button>
-      <button class="btn btn-primary" id="prevPrintBtn" style="background:var(--accent)">&#128424; Stampa / PDF</button>
-      <button class="btn btn-primary" id="prevWhatsappBtn" style="background:#25D366; border:none; color:white;">&#128222; WhatsApp</button>
-      <button class="btn btn-primary" id="prevEmailBtn" style="background:#3b82f6; border:none; color:white;">&#128231; Email</button>
+      <button class="btn btn-primary" id="prevPrintBtn">&#128424; Stampa / PDF</button>
+      <button class="btn btn-whatsapp" id="prevWhatsappBtn">&#128222; WhatsApp</button>
+      <button class="btn btn-email" id="prevEmailBtn">&#128231; Email</button>
     </div>
   </div>
 </div>
@@ -247,7 +319,7 @@
     <!-- Lista Risultati -->
     <div style="flex: 1; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
       <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
-        <thead style="position: sticky; top: 0; background: var(--surface2); box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+        <thead style="position: sticky; top: 0; background: var(--surface2); box-shadow: var(--shadow);">
           <tr>
             <th style="padding: 10px; text-align: left; font-size: 12px; color: var(--text3); border-bottom: 1px solid var(--border); width: 160px;">Numero & Data</th>
             <th style="padding: 10px; text-align: left; font-size: 12px; color: var(--text3); border-bottom: 1px solid var(--border);">Cliente</th>
@@ -267,6 +339,13 @@
       <div id="storicoLoading" style="display: none; text-align: center; padding: 40px; color: var(--text3);">
         Caricamento in corso dal Cloud...
       </div>
+    </div>
+
+    <!-- L'archivio arriva a pagine: il conteggio dice su quanti documenti
+         stanno agendo i filtri scritti a mano. -->
+    <div class="storico-piede">
+      <span id="storicoConteggio" class="storico-conteggio"></span>
+      <button id="btnStoricoAltri" class="btn btn-secondary" style="display:none;">&#8595; Carica altri</button>
     </div>
   </div>
 </div>

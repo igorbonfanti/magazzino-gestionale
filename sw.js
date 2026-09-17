@@ -2,12 +2,18 @@
 // la strategia e' cache-first senza rivalidazione, quindi senza un nome nuovo
 // i client gia' installati continuerebbero a servire la versione vecchia.
 // v2.3.0: introdotto il login (auth-gate.js).
-const CACHE_NAME = 'magazzino-pos-v2.3.0';
+// v2.4.0: articoli fuori listino (index.html, app.js, styles.css).
+// v2.5.0: tema condiviso chiaro/scuro (tema.css, tema.js).
+// v2.6.0: componenti condivisi (base.css).
+const CACHE_NAME = 'magazzino-pos-v2.6.0';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
+  './tema.css',
+  './base.css',
   './styles.css',
   './app.js',
+  './tema.js',
   './auth-gate.js',
   './manifest.json',
   'https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js',

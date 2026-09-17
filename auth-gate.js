@@ -71,31 +71,41 @@
     el.id = 'authGateOverlay';
     el.setAttribute('role', 'dialog');
     el.setAttribute('aria-modal', 'true');
+    // I colori vengono dal tema condiviso (tema.css). I valori dopo la virgola
+    // sono le riserve: se un'app non carica ancora tema.css, l'accesso resta
+    // leggibile invece di comparire nero su nero.
     el.style.cssText = [
       'position:fixed', 'inset:0', 'z-index:2147483647',
       'display:flex', 'align-items:center', 'justify-content:center',
-      'padding:24px', 'background:#0f172a',
-      'font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif'
+      'padding:24px', 'background:var(--bg,#0f172a)',
+      'font-family:var(--font-ui,system-ui,-apple-system,Segoe UI,Roboto,sans-serif)'
     ].join(';');
 
     el.innerHTML =
-      '<form id="authGateForm" style="width:100%;max-width:360px;background:#fff;' +
-      'border-radius:12px;padding:28px;box-shadow:0 10px 40px rgba(0,0,0,.3)">' +
-      '<h1 style="margin:0;font-size:18px;color:#0f172a">Accesso richiesto</h1>' +
-      '<p style="margin:6px 0 20px;font-size:13px;color:#64748b">Questa applicazione contiene dati aziendali.</p>' +
-      '<label for="authGateEmail" style="display:block;font-size:13px;font-weight:600;color:#334155">Email</label>' +
+      '<form id="authGateForm" style="width:100%;max-width:360px;' +
+      'background:var(--surface,#fff);color:var(--text,#0f172a);' +
+      'border:1px solid var(--border,transparent);' +
+      'border-radius:var(--radius,12px);padding:28px;' +
+      'box-shadow:var(--shadow-lg,0 10px 40px rgba(0,0,0,.3))">' +
+      '<h1 style="margin:0;font-size:var(--fs-xl,19px);color:var(--text,#0f172a)">Accesso richiesto</h1>' +
+      '<p style="margin:6px 0 20px;font-size:var(--fs-sm,13px);color:var(--text3,#64748b)">Questa applicazione contiene dati aziendali.</p>' +
+      '<label for="authGateEmail" style="display:block;font-size:var(--fs-sm,13px);font-weight:600;color:var(--text2,#334155)">Email</label>' +
       '<input id="authGateEmail" type="email" autocomplete="username" required ' +
-      'style="width:100%;box-sizing:border-box;margin:4px 0 14px;padding:9px 11px;font-size:14px;' +
-      'border:1px solid #cbd5e1;border-radius:7px">' +
-      '<label for="authGatePassword" style="display:block;font-size:13px;font-weight:600;color:#334155">Password</label>' +
+      'style="width:100%;box-sizing:border-box;margin:4px 0 14px;padding:10px 12px;font-size:var(--fs-base,14px);' +
+      'background:var(--surface,#fff);color:var(--text,#0f172a);' +
+      'border:1px solid var(--border-strong,#cbd5e1);border-radius:var(--radius-sm,7px)">' +
+      '<label for="authGatePassword" style="display:block;font-size:var(--fs-sm,13px);font-weight:600;color:var(--text2,#334155)">Password</label>' +
       '<input id="authGatePassword" type="password" autocomplete="current-password" required ' +
-      'style="width:100%;box-sizing:border-box;margin:4px 0 6px;padding:9px 11px;font-size:14px;' +
-      'border:1px solid #cbd5e1;border-radius:7px">' +
+      'style="width:100%;box-sizing:border-box;margin:4px 0 6px;padding:10px 12px;font-size:var(--fs-base,14px);' +
+      'background:var(--surface,#fff);color:var(--text,#0f172a);' +
+      'border:1px solid var(--border-strong,#cbd5e1);border-radius:var(--radius-sm,7px)">' +
       '<p id="authGateErrore" role="alert" style="display:none;margin:10px 0 0;padding:8px 10px;' +
-      'font-size:13px;color:#991b1b;background:#fee2e2;border-radius:7px"></p>' +
+      'font-size:var(--fs-sm,13px);color:var(--red,#991b1b);background:var(--red-bg,#fee2e2);' +
+      'border:1px solid var(--red-border,transparent);border-radius:var(--radius-sm,7px)"></p>' +
       '<button id="authGateSubmit" type="submit" ' +
-      'style="width:100%;margin-top:18px;padding:10px;font-size:14px;font-weight:600;color:#fff;' +
-      'background:#0f172a;border:0;border-radius:7px;cursor:pointer">Accedi</button>' +
+      'style="width:100%;margin-top:18px;padding:11px;font-size:var(--fs-base,14px);font-weight:700;' +
+      'color:var(--accent-ink,#fff);background:var(--accent,#0f172a);' +
+      'border:0;border-radius:var(--radius-sm,7px);cursor:pointer">Accedi</button>' +
       '</form>';
 
     var form = el.querySelector('#authGateForm');
