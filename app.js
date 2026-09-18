@@ -61,7 +61,69 @@ var searchInput=$('searchInput'), clearBtn=$('clearBtn'), tbody=$('tbody'),
 
 function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function fp(p){return p!=null?p.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}):'\u2014'}
-function ro2(n){return Math.round((n + Number.EPSILON) * 100) / 100;}
+// I prezzi unitari si mostrano come sono, fino a 4 decimali e senza zeri
+// inutili. A 2 decimali 0,855 diventerebbe 0,86 e la riga non tornerebbe piu':
+// chi legge farebbe 0,86 x 100 e si aspetterebbe 86,00 invece di 85,50.
+function fpu(p){return p!=null?p.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:4}):'\u2014'}
+// Arrotonda a 2 decimali, mezzo centesimo sempre verso l'alto.
+//
+// La versione precedente faceva Math.round((n + Number.EPSILON) * 100) / 100.
+// Number.EPSILON vale circa 2e-16: su importi dell'ordine delle decine di euro
+// e' troppo piccolo per correggere qualcosa, e ogni tanto spinge dalla parte
+// sbagliata. Su 30.000 importi realistici sbagliava il centesimo 180 volte.
+//
+// Qui si scala il numero sulla sua rappresentazione decimale invece che
+// moltiplicandolo: 34.605 * 100 in virgola mobile fa 3460.4999999999995 e
+// arrotonderebbe a 34.60, mentre Number('34.605e+2') fa esattamente 3460.5.
+// Stesso banco di prova: 31 differenze invece di 180.
+//
+// Resta un margine: in virgola mobile alcuni valori cadono esattamente sul
+// mezzo centesimo e l'esito e' opinabile entro un centesimo. La cura
+// definitiva sono i centesimi interi, come in magazzino-scorte (money.ts).
+function ro2(n){
+  if (typeof n !== 'number' || !isFinite(n)) return 0;
+  var segno = n < 0 ? -1 : 1;
+  var a = Math.abs(n);
+  var testo = a.toString();
+  // notazione esponenziale (valori enormi o minuscoli): non si puo' scalare
+  // la stringa, si ripiega sulla moltiplicazione
+  if (testo.indexOf('e') !== -1 || testo.indexOf('E') !== -1) {
+    return segno * Math.round(a * 100) / 100;
+  }
+  return segno * Number(Math.round(Number(testo + 'e+2')) + 'e-2');
+}
+
+// ===========================================================================
+// CATENA DEI PREZZI
+// ===========================================================================
+// Una regola sola: non si arrotonda MAI un prezzo unitario prima di
+// moltiplicarlo per la quantita'.
+//
+// Un articolo da 0,95 con il 10% di sconto costa 0,855. Arrotondando il pezzo
+// a 0,86 e poi moltiplicando per 100 pezzi vengono 86,00 invece di 85,50:
+// mezzo centesimo per pezzo diventa mezzo euro sulla riga. Piu' e' alta la
+// quantita', piu' l'errore cresce.
+//
+// L'arrotondamento a 2 decimali si fa una volta sola, sul totale di riga.
+
+/** Prezzo unitario netto applicato, a piena precisione. Non arrotondarlo. */
+function prezzoUnitario(c){
+  var p = (c && c.item && c.item.net) || 0;
+  if (c && c.extraDiscount > 0) p = p * (1 - c.extraDiscount / 100);
+  return p;
+}
+
+/** Totale della riga. E' qui, e solo qui, che si arrotonda. */
+function totaleRiga(c){
+  return ro2(prezzoUnitario(c) * ((c && c.qty) || 0));
+}
+
+/** Netto imponibile del carrello: somma di importi gia' a 2 decimali. */
+function nettoCarrello(){
+  var t = 0;
+  cart.forEach(function(c){ t += totaleRiga(c); });
+  return ro2(t);
+}
 function titleCase(s){return s.split(' ').map(function(w){return w.charAt(0)+w.slice(1).toLowerCase()}).join(' ')}
 // Accetta sia "12,50" che "12.50" che "1.234,56": l'operatore digita come gli
 // viene, e su tastiera numerica il separatore non e' sempre quello atteso.
@@ -188,14 +250,14 @@ async function checkCloudUpdates() {
                     if (!isNaN(rawSconto)) sconto = rawSconto;
                 }
 
+                // Il netto unitario resta a piena precisione: arrotondarlo qui
+                // significherebbe portarsi l'errore dentro ogni riga di
+                // preventivo, moltiplicato per la quantita'.
                 let net = prezzo;
-                if (sconto > 0) {
+                if (sconto !== 0) {
+                    if (sconto < 0) sconto = Math.abs(sconto);
                     if (sconto <= 1) sconto = Math.round(sconto * 10000) / 100;
-                    net = Math.round(prezzo * (1 - sconto/100) * 100) / 100;
-                } else if (sconto < 0) { 
-                    sconto = Math.abs(sconto);
-                    if (sconto <= 1) sconto = Math.round(sconto * 10000) / 100;
-                    net = Math.round(prezzo * (1 - sconto/100) * 100) / 100;
+                    net = prezzo * (1 - sconto/100);
                 }
 
                 list.push({ cod: cod, desc: desc, prezzo: prezzo, sconto: sconto, net: net, grp: grp, forn: forn, _s: (cod + '|' + desc + '|' + forn).toLowerCase() });
@@ -256,11 +318,28 @@ async function checkCloudUpdates() {
     }
 }
 
+// Il listino in cache puo' essere stato interpretato da una versione che
+// arrotondava il netto unitario a 2 decimali. Prezzo e sconto sono salvati
+// tali e quali, quindi il netto si puo' ricalcolare qui, a piena precisione,
+// senza aspettare che l'amministratore ricarichi il file.
+function normalizzaNetti(items) {
+    var corretti = 0;
+    items.forEach(function(it){
+        var atteso = (it.sconto > 0) ? it.prezzo * (1 - it.sconto/100) : it.prezzo;
+        if (typeof atteso === 'number' && isFinite(atteso) && it.net !== atteso) {
+            it.net = atteso;
+            corretti++;
+        }
+    });
+    if (corretti) console.log('Netti unitari ricalcolati a piena precisione: ' + corretti);
+    return items;
+}
+
 function initAppFallback() {
     const listData = localStorage.getItem('posListData');
     const cliData = localStorage.getItem('posClientiData');
     if(listData) {
-        ITEMS = JSON.parse(listData);
+        ITEMS = normalizzaNetti(JSON.parse(listData));
         if(cliData && CLIENTI.length === 0) { 
             CLIENTI = JSON.parse(cliData); 
         } else if(cliData) {
@@ -455,7 +534,7 @@ function doSearch(){
       +'<td class="col-forn">'+esc(item.forn||'\u2014')+'</td>'
       +'<td class="col-price">'+fp(item.prezzo)+'</td>'
       +'<td class="col-disc">'+discHtml+'</td>'
-      +'<td class="col-net">'+fp(item.net)+'</td>';
+      +'<td class="col-net">'+fpu(item.net)+'</td>';
     frag.appendChild(tr);
   });
   tbody.innerHTML='';tbody.appendChild(frag);tableWrap.scrollTop=0;
@@ -467,7 +546,7 @@ function openAddModal(item){
   $('mCod').textContent='COD. '+item.cod;
   $('mName').textContent=item.desc;
   $('mMeta').textContent=[item.cat,item.grp,item.forn].filter(Boolean).join(' \u00b7 ');
-  $('mPrice').textContent='\u20ac '+fp(item.net);
+  $('mPrice').textContent='\u20ac '+fpu(item.net);
 
   var dd = $('mDiscountDetail');
   if(item.sconto > 0){
@@ -506,7 +585,6 @@ function updateSubtotal(){
   var mED = $('mExtraDiscount');
   var ed = mED ? (parseFloat(mED.value)||0) : 0;
   if(ed > 0) p = p * (1 - ed/100);
-  p = ro2(p);
   var sub = ro2(q * p);
   $('mSubtotal').textContent='\u20ac '+fp(sub);
 }
@@ -663,10 +741,8 @@ function renderCart(){
   cartSubtitle.textContent=cart.length+' articol'+(cart.length===1?'o':'i')+' selezionat'+(cart.length===1?'o':'i');
   var html='';
   cart.forEach(function(c,idx){
-    var unitNet = c.item.net;
-    if(c.extraDiscount > 0) unitNet = unitNet * (1 - c.extraDiscount/100);
-    unitNet = ro2(unitNet);
-    var sub=ro2(c.qty*(unitNet||0));
+    var unitNet = prezzoUnitario(c);
+    var sub = totaleRiga(c);
     var discParts = [];
     if(c.item.sconto > 0) discParts.push('-'+c.item.sconto+'%');
     if(c.extraDiscount > 0) discParts.push('extra -'+c.extraDiscount+'%');
@@ -695,7 +771,7 @@ function renderCart(){
       // quanto stavi vendendo, dovevi riaprire il modale dell'articolo.
       +'<div class="cart-item-money">'
       +'<div class="cart-item-total">\u20ac '+fp(sub)+'</div>'
-      +'<div class="cart-item-unit">\u20ac '+fp(unitNet)+(c.item.um?' / '+esc(c.item.um):' cad.')+'</div>'
+      +'<div class="cart-item-unit">\u20ac '+fpu(unitNet)+(c.item.um?' / '+esc(c.item.um):' cad.')+'</div>'
       +'</div>'
       +'</div></div>';
   });
@@ -723,15 +799,9 @@ cartBody.addEventListener('change',function(e){
 });
 
 function updateTotals(){
-  var nItems=0,netto=0;
-  cart.forEach(function(c){
-    var unitNet = c.item.net;
-    if(c.extraDiscount > 0) unitNet = unitNet * (1 - c.extraDiscount/100);
-    unitNet = ro2(unitNet);
-    nItems+=c.qty;
-    netto+=ro2(c.qty*(unitNet||0));
-  });
-  netto = ro2(netto);
+  var nItems=0;
+  cart.forEach(function(c){ nItems += c.qty; });
+  var netto = nettoCarrello();
   var iva=ro2(netto*0.22);
   $('ftItems').textContent=nItems;
   $('ftNetto').textContent='\u20ac '+fp(netto);
@@ -776,10 +846,8 @@ function renderPrevBody() {
   var netto=0;
   var rows='';
   cart.forEach(function(c){
-    var unitNet = c.item.net;
-    if(c.extraDiscount > 0) unitNet = unitNet * (1 - c.extraDiscount/100);
-    unitNet = ro2(unitNet);
-    var sub=ro2(c.qty*(unitNet||0));
+    var unitNet = prezzoUnitario(c);
+    var sub = totaleRiga(c);
     netto+=sub;
     var discParts = [];
     if(c.item.sconto > 0) discParts.push('-'+c.item.sconto+'%');
@@ -792,7 +860,7 @@ function renderPrevBody() {
       : esc(c.item.cod);
     rows+='<tr><td class="prev-cod">'+codTd+'</td><td>'+esc(c.item.desc)
       +'</td><td class="r">'+fp(c.item.prezzo)+'</td><td class="disc-cell" style="line-height:1.2;">'+discTd
-      +'</td><td class="r">'+fp(unitNet)+'</td><td class="r">'+esc(qtyLabel(c))
+      +'</td><td class="r">'+fpu(unitNet)+'</td><td class="r">'+esc(qtyLabel(c))
       +'</td><td class="r">'+fp(sub)+'</td></tr>';
   });
   netto = ro2(netto);
@@ -1206,10 +1274,8 @@ async function saveQuoteToCloud(type) {
         
         var netto = 0;
         var itemsForDb = cart.map(function(c){
-           var unitNet = c.item.net;
-           if(c.extraDiscount > 0) unitNet = unitNet * (1 - c.extraDiscount/100);
-           unitNet = ro2(unitNet);
-           var sub = ro2(c.qty*(unitNet||0));
+           var unitNet = prezzoUnitario(c);
+           var sub = totaleRiga(c);
            netto += sub;
            return {
                cod: c.item.cod || '', desc: c.item.desc, qty: c.qty, 
@@ -1273,10 +1339,8 @@ $('prevEmailBtn').addEventListener('click', async function() {
     bodyText += "\nElenco:\n";
     var netto = 0;
     cart.forEach(function(c){
-        var unitNet = c.item.net;
-        if(c.extraDiscount > 0) unitNet = unitNet * (1 - c.extraDiscount/100);
-        unitNet = ro2(unitNet);
-        var sub = ro2(c.qty * (unitNet || 0));
+        var unitNet = prezzoUnitario(c);
+        var sub = totaleRiga(c);
         netto += sub;
         var discText = "";
         var discParts = [];
@@ -1330,10 +1394,8 @@ $('prevWhatsappBtn').addEventListener('click', async function() {
     bodyText += "\n*Elenco Articoli:*\n";
     var netto = 0;
     cart.forEach(function(c){
-        var unitNet = c.item.net;
-        if(c.extraDiscount > 0) unitNet = unitNet * (1 - c.extraDiscount/100);
-        unitNet = ro2(unitNet);
-        var sub = ro2(c.qty * (unitNet || 0));
+        var unitNet = prezzoUnitario(c);
+        var sub = totaleRiga(c);
         netto += sub;
         var discText = "";
         var discParts = [];
@@ -1430,9 +1492,9 @@ $('prevExportBtn').addEventListener('click',function(){
       listino,
       sc1,
       sc2,
-      { t: 'n', f: 'ROUND(C'+r+'*(1-D'+r+'/100)*(1-E'+r+'/100), 2)' },
+      { t: 'n', f: 'C'+r+'*(1-D'+r+'/100)*(1-E'+r+'/100)' },
       qty,
-      { t: 'n', f: 'ROUND(F'+r+'*G'+r+', 2)' }
+      { t: 'n', f: 'ROUND(F'+r+'*G'+r+', 2)' }   // unico arrotondamento della riga
     ]);
   });
   

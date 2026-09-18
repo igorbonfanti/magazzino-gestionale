@@ -5,7 +5,8 @@
 // v2.4.0: articoli fuori listino (index.html, app.js, styles.css).
 // v2.5.0: tema condiviso chiaro/scuro (tema.css, tema.js).
 // v2.6.0: componenti condivisi (base.css).
-const CACHE_NAME = 'magazzino-pos-v2.6.0';
+// v2.6.1: correzione degli arrotondamenti nel calcolo dei prezzi (app.js).
+const CACHE_NAME = 'magazzino-pos-v2.6.1';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
