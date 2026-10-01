@@ -7,7 +7,8 @@
 // v2.6.0: componenti condivisi (base.css).
 // v2.6.1: correzione degli arrotondamenti nel calcolo dei prezzi (app.js).
 // v2.6.2: favicon e icona per la schermata Home (index.html, manifest.json).
-const CACHE_NAME = 'magazzino-pos-v2.6.2';
+// v2.6.3: icone ridisegnate (favicon, apple-touch-icon, icon-192/512).
+const CACHE_NAME = 'magazzino-pos-v2.6.3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
