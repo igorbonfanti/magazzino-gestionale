@@ -1,6 +1,6 @@
 {
   "name": "Il Magazzino Edile POS",
-  "short_name": "Magazzino",
+  "short_name": "Preventivi",
   "description": "App di preventivazione e POS offline per Il Magazzino Edile",
   "start_url": "./",
   "display": "standalone",

@@ -6,7 +6,8 @@
 // v2.5.0: tema condiviso chiaro/scuro (tema.css, tema.js).
 // v2.6.0: componenti condivisi (base.css).
 // v2.6.1: correzione degli arrotondamenti nel calcolo dei prezzi (app.js).
-const CACHE_NAME = 'magazzino-pos-v2.6.1';
+// v2.6.2: favicon e icona per la schermata Home (index.html, manifest.json).
+const CACHE_NAME = 'magazzino-pos-v2.6.2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -17,6 +18,11 @@ const ASSETS_TO_CACHE = [
   './tema.js',
   './auth-gate.js',
   './manifest.json',
+  './favicon.svg',
+  './favicon.ico',
+  './apple-touch-icon.png',
+  './icon-192.png',
+  './icon-512.png',
   'https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
   'https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js',
