@@ -1,0 +1,20 @@
+{
+  "hosting": {
+    "site": "ilmagazzinoedile-preventivi",
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "**/*.md",
+      "*.ps1",
+      "dashboard.html"
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      }
+    ]
+  }
+}
