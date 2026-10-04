@@ -8,7 +8,8 @@
 // v2.6.1: correzione degli arrotondamenti nel calcolo dei prezzi (app.js).
 // v2.6.2: favicon e icona per la schermata Home (index.html, manifest.json).
 // v2.6.3: icone ridisegnate (favicon, apple-touch-icon, icon-192/512).
-const CACHE_NAME = 'magazzino-pos-v2.6.3';
+// v2.6.4: il logo ME porta alla dashboard di tutte le app (index.html).
+const CACHE_NAME = 'magazzino-pos-v2.6.4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
